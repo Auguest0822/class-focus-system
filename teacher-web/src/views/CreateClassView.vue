@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createClass } from '@/api/classApi'
 import ClassCodeCard from '@/components/ClassCodeCard.vue'
@@ -11,17 +11,16 @@ const loading = ref(false)
 const generatedCode = ref('PY2025')
 
 const form = reactive({
-  courseName: 'Python 基础',
+  courseNo: '100001',
+  courseName: '高等数学',
   className: '第 1 次课',
-  teacherName: '张老师',
+  startTime: '2026-07-06 08:00',
   mode: '默认模板',
   focusOne: 50,
   breakTime: 5,
   focusTwo: 40,
   template: 'default',
 })
-
-const durationText = computed(() => `${form.focusOne} + ${form.breakTime} + ${form.focusTwo}`)
 
 const handleCreate = async () => {
   loading.value = true
@@ -40,19 +39,24 @@ const handleCreate = async () => {
       <h2>基础信息</h2>
       <el-form label-position="top" :model="form">
         <el-row :gutter="18">
-          <el-col :span="12">
+          <el-col :span="8">
+            <el-form-item label="课号">
+              <el-input v-model="form.courseNo" size="large" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
             <el-form-item label="课程名称">
               <el-input v-model="form.courseName" size="large" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="课堂名称">
+          <el-col :span="8">
+            <el-form-item label="课次">
               <el-input v-model="form.className" size="large" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="老师姓名">
-              <el-input v-model="form.teacherName" size="large" />
+            <el-form-item label="开课时间">
+              <el-input v-model="form.startTime" size="large" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -83,10 +87,25 @@ const handleCreate = async () => {
         <span>专注 {{ form.focusTwo }}</span>
       </div>
       <ClassCodeCard :code="generatedCode" hint="创建成功后展示课堂码" />
-      <p>
-        学生在 Android App 中输入课堂码加入课堂，课堂时长由老师端设置。当前模板：
-        <strong>{{ durationText }}</strong>
-      </p>
+      <dl class="preview-list">
+        <div>
+          <dt>课程批次</dt>
+          <dd>{{ form.courseNo }}</dd>
+        </div>
+        <div>
+          <dt>课堂</dt>
+          <dd>{{ form.courseName }} {{ form.className }}</dd>
+        </div>
+        <div>
+          <dt>课堂时间</dt>
+          <dd>08:00 - 09:35</dd>
+        </div>
+        <div>
+          <dt>总时长</dt>
+          <dd>{{ form.focusOne + form.breakTime + form.focusTwo }} 分钟</dd>
+        </div>
+      </dl>
+      <p>结束时间由开课时间和课堂时长自动计算，学生使用本次课堂码加入。</p>
     </aside>
   </div>
 </template>
@@ -100,13 +119,13 @@ const handleCreate = async () => {
 
 .panel {
   border: 1px solid #d5e5f2;
-  border-radius: 18px;
+  border-radius: 20px;
   background: #ffffff;
   box-shadow: 0 18px 38px rgba(18, 53, 91, 0.06);
 }
 
 .form-panel {
-  padding: 28px;
+  padding: 28px 28px 24px;
 }
 
 .preview-panel {
@@ -122,7 +141,7 @@ h2 {
 
 .chips {
   display: grid;
-  grid-template-columns: 1fr 74px 1fr;
+  grid-template-columns: 1fr 72px 1fr;
   gap: 12px;
   margin-bottom: 22px;
 }
@@ -143,9 +162,32 @@ h2 {
 }
 
 .preview-panel p {
-  margin: 24px 0 0;
+  margin: 22px 0 0;
   color: #516987;
   line-height: 1.7;
+}
+
+.preview-list {
+  display: grid;
+  gap: 16px;
+  margin: 22px 0 0;
+}
+
+.preview-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.preview-list dt {
+  color: #516987;
+}
+
+.preview-list dd {
+  margin: 0;
+  color: #052b55;
+  font-weight: 800;
+  text-align: right;
 }
 
 .form-actions {
@@ -157,6 +199,18 @@ h2 {
 @media (max-width: 1060px) {
   .create-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  :deep(.el-col) {
+    max-width: 100%;
+    flex: 0 0 100%;
+  }
+
+  .form-panel,
+  .preview-panel {
+    padding: 22px;
   }
 }
 </style>

@@ -44,8 +44,8 @@ const routes = [
         name: 'class-detail',
         component: ClassDetailView,
         meta: {
-          title: '课堂详情',
-          subtitle: '查看课堂码、课堂配置和学生加入情况。',
+          title: '课程详情',
+          subtitle: '按课号查看课程下的历史课次与课堂数据。',
         },
       },
       {
@@ -54,7 +54,7 @@ const routes = [
         component: ClassReportView,
         meta: {
           title: '课堂报告',
-          subtitle: '查看课堂手机使用统计、学生专注情况和系统建议。',
+          subtitle: '按课号选择具体课次，查看该次课堂的专注报告。',
         },
       },
     ],

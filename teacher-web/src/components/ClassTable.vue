@@ -23,16 +23,18 @@ const tagType = (status) => {
     </div>
 
     <el-table :data="classes" class="clean-table">
-      <el-table-column prop="className" label="课堂名称" min-width="140" />
-      <el-table-column prop="courseName" label="课程名称" min-width="140" />
-      <el-table-column prop="code" label="课堂码" min-width="120" />
-      <el-table-column prop="duration" label="课堂时长" min-width="150" />
-      <el-table-column label="状态" min-width="120">
+      <el-table-column prop="courseNo" label="课号" min-width="96" />
+      <el-table-column prop="courseName" label="课程名称" min-width="126" />
+      <el-table-column prop="className" label="课次" min-width="106" />
+      <el-table-column prop="startTime" label="开课时间" min-width="154" />
+      <el-table-column prop="code" label="课堂码" min-width="106" />
+      <el-table-column prop="duration" label="课堂时长" min-width="126" />
+      <el-table-column label="状态" min-width="92">
         <template #default="{ row }">
           <el-tag :type="tagType(row.status)" round effect="light">{{ row.statusText }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" min-width="190" fixed="right">
+      <el-table-column label="操作" min-width="150" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="emit('view-detail', row)">查看详情</el-button>
           <el-button v-if="row.status === 'ended'" link type="primary" @click="emit('view-report', row)">

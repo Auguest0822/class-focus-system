@@ -43,15 +43,15 @@ const useCustom = () => {
     </div>
 
     <el-row :gutter="18" class="time-form">
-      <el-col :span="12">
+      <el-col :span="8">
         <label>第一专注段</label>
         <el-input-number v-model="model.focusOne" :min="10" :max="120" controls-position="right" />
       </el-col>
-      <el-col :span="12">
+      <el-col :span="8">
         <label>休息时间</label>
         <el-input-number v-model="model.breakTime" :min="0" :max="30" controls-position="right" />
       </el-col>
-      <el-col :span="12">
+      <el-col :span="8">
         <label>第二专注段</label>
         <el-input-number v-model="model.focusTwo" :min="10" :max="120" controls-position="right" />
       </el-col>

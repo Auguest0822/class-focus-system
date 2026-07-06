@@ -2,8 +2,8 @@
 const menuItems = [
   { label: '课堂列表', path: '/dashboard' },
   { label: '创建课堂', path: '/create-class' },
-  { label: '课堂详情', path: '/class-detail/PY2025' },
-  { label: '课堂报告', path: '/class-report/PY2025' },
+  { label: '课程详情', path: '/class-detail/MA2025' },
+  { label: '课堂报告', path: '/class-report/MA2025' },
 ]
 </script>
 
@@ -26,24 +26,32 @@ const menuItems = [
 <style scoped>
 .sidebar {
   width: 236px;
+  height: 100vh;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
   padding: 32px 22px;
   background: #ffffff;
   border-right: 1px solid #d5e5f2;
 }
 
+.brand {
+  text-align: center;
+}
+
 .brand strong {
   display: block;
   color: #12355b;
-  font-size: 22px;
-  line-height: 1.16;
+  font-size: 26px;
+  line-height: 1.18;
   letter-spacing: 0;
 }
 
 .brand span {
   display: block;
-  margin-top: 8px;
+  margin-top: 12px;
   color: #00aeca;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -85,6 +93,8 @@ const menuItems = [
 @media (max-width: 900px) {
   .sidebar {
     width: 100%;
+    height: auto;
+    position: static;
     padding: 20px;
     border-right: 0;
     border-bottom: 1px solid #d5e5f2;
