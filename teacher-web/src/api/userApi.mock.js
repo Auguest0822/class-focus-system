@@ -10,5 +10,16 @@ export const login = async (payload) => {
   return wait({ teacher, token: localStorage.getItem('teacher_token') })
 }
 
-export const getCurrentTeacher = () => wait(teacher)
+export const register = async (payload) => {
+  localStorage.setItem('teacher_token', `mock-token-${payload.username || 'teacher'}`)
+  return wait({
+    teacher: {
+      ...teacher,
+      name: payload.name || teacher.name,
+      avatarText: (payload.name || teacher.name).slice(0, 1),
+    },
+    token: localStorage.getItem('teacher_token'),
+  })
+}
 
+export const getCurrentTeacher = () => wait(teacher)

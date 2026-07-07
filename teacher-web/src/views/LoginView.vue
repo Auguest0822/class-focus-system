@@ -1,20 +1,77 @@
 <script setup>
 import { reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { login } from '@/api/userApi'
+import { login, register } from '@/api/userApi'
 
 const router = useRouter()
-const loading = ref(false)
-const form = reactive({
+const loginLoading = ref(false)
+const registerLoading = ref(false)
+const isRegisterMode = ref(false)
+
+const loginForm = reactive({
   username: '',
   password: '',
 })
 
+const registerForm = reactive({
+  name: '',
+  username: '',
+  password: '',
+  confirmPassword: '',
+})
+
+const validateRegisterForm = () => {
+  if (!registerForm.name.trim()) {
+    ElMessage.warning('请输入老师姓名')
+    return false
+  }
+
+  if (!registerForm.username.trim()) {
+    ElMessage.warning('请输入账号')
+    return false
+  }
+
+  if (!registerForm.password) {
+    ElMessage.warning('请输入密码')
+    return false
+  }
+
+  if (registerForm.password !== registerForm.confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
+    return false
+  }
+
+  return true
+}
+
 const handleLogin = async () => {
-  loading.value = true
-  await login(form)
-  loading.value = false
-  router.push('/dashboard')
+  loginLoading.value = true
+
+  try {
+    await login(loginForm)
+    router.push('/dashboard')
+  } finally {
+    loginLoading.value = false
+  }
+}
+
+const handleRegister = async () => {
+  if (!validateRegisterForm()) return
+
+  registerLoading.value = true
+
+  try {
+    await register(registerForm)
+    await login({
+      username: registerForm.username,
+      password: registerForm.password,
+    })
+    ElMessage.success('注册成功')
+    router.push('/dashboard')
+  } finally {
+    registerLoading.value = false
+  }
 }
 </script>
 
@@ -24,7 +81,7 @@ const handleLogin = async () => {
       <p class="eyebrow">Teacher Web Console</p>
       <h1>课堂专注<br />管理系统</h1>
       <p class="intro-text">
-        面向大学课堂的手机使用统计与专注分析工具，帮助老师创建课堂、查看学生加入情况和课堂报告。
+        面向大学课堂的手机使用统计与专注管理工具，帮助老师创建课堂、查看学生加入情况和课堂报告。
       </p>
 
       <div class="visual-card" aria-hidden="true">
@@ -44,20 +101,44 @@ const handleLogin = async () => {
     </section>
 
     <section class="login-card">
-      <h2>老师登录</h2>
-      <p>进入老师端后台，创建课堂并查看专注报告。</p>
+      <h2>{{ isRegisterMode ? '老师注册' : '老师登录' }}</h2>
+      <p>
+        {{ isRegisterMode ? '创建老师账号后，即可进入后台创建课堂。' : '进入老师端后台，创建课堂并查看专注报告。' }}
+      </p>
 
-      <el-form label-position="top" :model="form" @submit.prevent>
+      <el-form v-if="!isRegisterMode" label-position="top" :model="loginForm" @submit.prevent>
         <el-form-item label="账号">
-          <el-input v-model="form.username" size="large" />
+          <el-input v-model="loginForm.username" size="large" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="form.password" size="large" type="password" show-password />
+          <el-input v-model="loginForm.password" size="large" type="password" show-password />
         </el-form-item>
-        <el-button class="login-button" type="primary" size="large" :loading="loading" @click="handleLogin">
+        <el-button class="login-button" type="primary" size="large" :loading="loginLoading" @click="handleLogin">
           登录系统
         </el-button>
       </el-form>
+
+      <el-form v-else label-position="top" :model="registerForm" @submit.prevent>
+        <el-form-item label="姓名">
+          <el-input v-model="registerForm.name" size="large" />
+        </el-form-item>
+        <el-form-item label="账号">
+          <el-input v-model="registerForm.username" size="large" />
+        </el-form-item>
+        <el-form-item label="密码">
+          <el-input v-model="registerForm.password" size="large" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="确认密码">
+          <el-input v-model="registerForm.confirmPassword" size="large" type="password" show-password />
+        </el-form-item>
+        <el-button class="login-button" type="primary" size="large" :loading="registerLoading" @click="handleRegister">
+          注册并登录
+        </el-button>
+      </el-form>
+
+      <el-button class="mode-button" link type="primary" @click="isRegisterMode = !isRegisterMode">
+        {{ isRegisterMode ? '已有账号，去登录' : '没有账号，注册老师账号' }}
+      </el-button>
     </section>
   </main>
 </template>
@@ -203,7 +284,7 @@ h1 {
 }
 
 .login-card {
-  padding: 42px 40px 40px;
+  padding: 42px 40px 34px;
   border: 1px solid #d5e5f2;
   border-radius: 22px;
   background: #ffffff;
@@ -224,6 +305,12 @@ h2 {
 .login-button {
   width: 100%;
   margin-top: 4px;
+  font-weight: 800;
+}
+
+.mode-button {
+  width: 100%;
+  margin-top: 18px;
   font-weight: 800;
 }
 
