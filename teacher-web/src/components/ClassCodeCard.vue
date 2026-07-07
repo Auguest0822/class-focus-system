@@ -2,7 +2,7 @@
 defineProps({
   code: {
     type: String,
-    default: 'PY2025',
+    default: '',
   },
   hint: {
     type: String,
@@ -13,7 +13,7 @@ defineProps({
 
 <template>
   <section class="code-card">
-    <strong>{{ code }}</strong>
+    <strong>{{ code || '待生成' }}</strong>
     <span>{{ hint }}</span>
   </section>
 </template>

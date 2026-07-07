@@ -67,7 +67,11 @@ const tagType = (status) => {
 <template>
   <TopBar>
     <template #actions>
-      <el-button type="primary" size="large" @click="router.push(`/class-report/${selectedLesson.id || 'MA2025'}`)">
+      <el-button
+        type="primary"
+        size="large"
+        @click="router.push(selectedLesson.id ? `/class-report/${selectedLesson.id}` : '/class-report')"
+      >
         查看报告
       </el-button>
     </template>

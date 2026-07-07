@@ -1,12 +1,20 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { teacher } from '@/mock/classData'
+import { getCurrentTeacher } from '@/api/userApi'
 
 const route = useRoute()
+const teacher = ref({
+  name: '张老师',
+  avatarText: '张',
+})
 
 const title = computed(() => route.meta.title || '课堂专注管理系统')
 const subtitle = computed(() => route.meta.subtitle || 'Teacher Web Console')
+
+onMounted(async () => {
+  teacher.value = await getCurrentTeacher()
+})
 </script>
 
 <template>

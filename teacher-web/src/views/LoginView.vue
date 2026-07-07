@@ -1,13 +1,13 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { login } from '@/api/classApi'
+import { login } from '@/api/userApi'
 
 const router = useRouter()
 const loading = ref(false)
 const form = reactive({
-  username: 'admin',
-  password: '123456',
+  username: '',
+  password: '',
 })
 
 const handleLogin = async () => {

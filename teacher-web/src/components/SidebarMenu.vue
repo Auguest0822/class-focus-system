@@ -2,8 +2,8 @@
 const menuItems = [
   { label: '课堂列表', path: '/dashboard' },
   { label: '创建课堂', path: '/create-class' },
-  { label: '课程详情', path: '/class-detail/MA2025' },
-  { label: '课堂报告', path: '/class-report/MA2025' },
+  { label: '课程详情', path: '/class-detail' },
+  { label: '课堂报告', path: '/class-report' },
 ]
 </script>
 

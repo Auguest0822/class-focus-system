@@ -8,13 +8,13 @@ import TopBar from '@/components/TopBar.vue'
 
 const router = useRouter()
 const loading = ref(false)
-const generatedCode = ref('PY2025')
+const generatedCode = ref('')
 
 const form = reactive({
-  courseNo: '100001',
-  courseName: '高等数学',
-  className: '第 1 次课',
-  startTime: '2026-07-06 08:00',
+  courseNo: '',
+  courseName: '',
+  className: '',
+  startTime: '',
   mode: '默认模板',
   focusOne: 50,
   breakTime: 5,
@@ -98,7 +98,7 @@ const handleCreate = async () => {
         </div>
         <div>
           <dt>课堂时间</dt>
-          <dd>08:00 - 09:35</dd>
+          <dd>待设置</dd>
         </div>
         <div>
           <dt>总时长</dt>
