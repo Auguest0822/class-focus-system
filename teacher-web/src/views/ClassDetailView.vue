@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getClassDetail } from '@/api/classApi'
+import { getClassDetail, getMembers } from '@/api/classApi'
 import ClassCodeCard from '@/components/ClassCodeCard.vue'
 import StudentTable from '@/components/StudentTable.vue'
 import TopBar from '@/components/TopBar.vue'
@@ -14,12 +14,28 @@ const expandedCourseNo = ref('')
 const selectedLessonId = ref('')
 const students = ref([])
 
+/**
+ * 根据课次 id 拉取"该课次自己的学生成员 + 使用情况"。
+ * 页面一进来、以及每次切换课次时都会调用。
+ * 如果传入的 id 为空（例如该课程还没创建任何课次），直接清空。
+ */
+const loadClassroomMembers = async (classroomId) => {
+  if (!classroomId) {
+    students.value = []
+    return
+  }
+  students.value = await getMembers(classroomId)
+}
+
 onMounted(async () => {
   const data = await getClassDetail(route.params.id)
   classInfo.value = data.classInfo
   courses.value = data.courses
   expandedCourseNo.value = data.classInfo.courseNo
   selectedLessonId.value = data.classInfo.id
+  // 进入页面后，拉一次"当前这节课自己的学生"。
+  // 以前 getClassDetail 里的 students 只对 route.params.id 这一节课有效；
+  // 用户再点到别的课次时不会再调，导致学生表一直是第一次加载的那一份。
   students.value = data.students
 })
 
@@ -40,9 +56,11 @@ const toggleCourse = (course) => {
   expandedCourseNo.value = course.courseNo
 }
 
-const selectLesson = (course, lesson) => {
+const selectLesson = async (course, lesson) => {
   expandedCourseNo.value = course.courseNo
   selectedLessonId.value = lesson.id
+  // 切到新的课次时，重新拉它自己的学生成员，而不是继续用页面首次加载时那一份。
+  await loadClassroomMembers(lesson.id)
 }
 
 const formatLessonTime = (lesson) => {
@@ -120,7 +138,18 @@ const tagType = (status) => {
               </div>
               <div>
                 <dt>加入人数</dt>
-                <dd>{{ selectedLesson.joinedCount }} 人</dd>
+                <!--
+                  优先用后端返回的 joinedCount；
+                  如果后端没返回该字段（例如 CourseGroupInfo 里只有 classroom 基础字段），
+                  退而用 "当前成员列表长度"，避免显示 "0 人已加入" 导致老师以为没人进来。
+                -->
+                <dd>
+                  {{
+                    selectedLesson.joinedCount != null && selectedLesson.joinedCount > 0
+                      ? `${selectedLesson.joinedCount} 人`
+                      : `${students.length || 0} 人`
+                  }}
+                </dd>
               </div>
               <div>
                 <dt>课堂状态</dt>
@@ -132,7 +161,7 @@ const tagType = (status) => {
           <section class="students-panel">
             <div class="panel-title">
               <h2>学生加入情况</h2>
-              <el-tag type="primary" effect="light" round>{{ selectedLesson.joinedCount || 0 }} 人已加入</el-tag>
+              <el-tag type="primary" effect="light" round>{{ students.length || 0 }} 人已加入</el-tag>
             </div>
             <StudentTable :students="students" />
           </section>

@@ -138,8 +138,16 @@ export const getDashboard = async () => {
 }
 
 export const getClasses = async () => {
-  const data = await request.get('/teacher/classrooms')
-  return (Array.isArray(data) ? data : []).map(normalizeClassroom)
+  const groups = await request.get('/teacher/courses')
+  // 后端按课程返回 CourseGroupInfo[];前端内部统一成 "单个课次" 的扁平列表,
+  // 以便下游 normalizeClassroom / DashboardView / ClassDetailView / ClassReportView
+  // 继续按 "某一次课堂" 来处理。
+  const list = Array.isArray(groups) ? groups.flatMap((g) => (g.classrooms || []).map((c) => ({
+    ...c,
+    course_no: g.course_no,
+    course_name: g.course_name,
+  }))) : []
+  return list.map(normalizeClassroom)
 }
 
 export const createClass = async (form) => {
@@ -147,15 +155,26 @@ export const createClass = async (form) => {
   return normalizeClassroom(data)
 }
 
+/**
+ * 拉取某一次课堂的已加入学生成员 + 使用情况。
+ * 对应后端: GET /api/teacher/classrooms/{id}/members。
+ * 在 ClassDetailView / ClassReportView 里，每切换一次课次都应该调用一次。
+ */
+export const getMembers = async (classroomId) => {
+  if (!classroomId) return []
+  const list = await request.get(`/teacher/classrooms/${classroomId}/members`)
+  return (Array.isArray(list) ? list : []).map(normalizeStudent)
+}
+
 export const getClassDetail = async (id) => {
   const classes = await getClasses()
   const classInfo = currentOrFirstClass(classes, id)
-  const members = classInfo.id ? await request.get(`/teacher/classrooms/${classInfo.id}/members`) : []
+  const students = classInfo.id ? await getMembers(classInfo.id) : []
 
   return {
     classInfo,
     courses: groupByCourse(classes),
-    students: (Array.isArray(members) ? members : []).map(normalizeStudent),
+    students,
   }
 }
 

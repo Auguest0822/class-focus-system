@@ -31,7 +31,26 @@ export const getDashboard = () =>
     classes,
   })
 
-export const getClasses = () => wait(classes)
+export const getClasses = () => {
+  // 与后端保持一致:先按课程分组(groups),再拍平成单个课次的列表。
+  // 这样 DashboardView / ClassDetailView / ClassReportView 都只需要消费 "单个课次" 列表。
+  const groups = classes.reduce((acc, item) => {
+    const key = `${item.courseNo || ''}-${item.courseName || ''}`
+    if (!acc.map.has(key)) {
+      acc.map.set(key, { courseNo: item.courseNo, courseName: item.courseName, classrooms: [] })
+      acc.list.push(acc.map.get(key))
+    }
+    acc.map.get(key).classrooms.push(item)
+    return acc
+  }, { map: new Map(), list: [] }).list
+
+  const flat = groups.flatMap((g) => (g.classrooms || []).map((c) => ({
+    ...c,
+    course_no: g.courseNo,
+    course_name: g.courseName,
+  })))
+  return wait(flat)
+}
 
 export const createClass = (form) => {
   const codePrefix = (form.courseName || 'PY').slice(0, 2).toUpperCase()
@@ -47,6 +66,12 @@ export const createClass = (form) => {
   }
 
   return wait(createdClass)
+}
+
+export const getMembers = async (classroomId) => {
+  // mock: 统一返回 students;如果你的数据里想区分不同课次的成员，
+  // 可以在这里按 classroomId 过滤再返回。
+  return wait([...students])
 }
 
 export const getClassDetail = (id = 'PY2025') => {
