@@ -15,7 +15,9 @@ from app.schemas import (
     AppUsageInfo,
     ClassroomInfo,
     ClassroomJoin,
+    PhaseInfo,
 )
+from app.utils.phase import calculate_phase
 
 router = APIRouter(prefix="/api/student", tags=["学生"])
 
@@ -157,4 +159,57 @@ def my_usage_in_classroom(
         code=0,
         message="ok",
         data=[AppUsageInfo.model_validate(r) for r in records],
+    )
+
+
+@router.get(
+    "/classrooms/{classroom_id}/phase",
+    summary="查询课堂倒计时阶段(学生端)",
+    description="学生查询其已加入课堂的当前阶段与剩余秒数。"
+    "适合每 3-5 秒轮询一次，实现与老师端同步倒计时。",
+    response_model=ApiResponse[PhaseInfo],
+)
+def get_classroom_phase_student(
+    classroom_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("student")),
+):
+    # 验证学生已加入
+    member = (
+        db.query(ClassroomMember)
+        .filter(
+            ClassroomMember.classroom_id == classroom_id,
+            ClassroomMember.student_id == current_user.id,
+        )
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=403, detail="未加入该课堂")
+
+    classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
+    if not classroom:
+        raise HTTPException(status_code=404, detail="课堂不存在")
+
+    phase_data = calculate_phase(classroom)
+
+    # 超时自动结束
+    if phase_data.pop("auto_finish", False):
+        classroom.status = "finished"
+        classroom.ended_at = datetime.now()
+        db.commit()
+        db.refresh(classroom)
+
+    return ApiResponse(
+        code=0,
+        message="ok",
+        data=PhaseInfo(
+            phase=phase_data["phase"],
+            phase_name=phase_data["phase_name"],
+            remaining_seconds=phase_data["remaining_seconds"],
+            total_phase_seconds=phase_data["total_phase_seconds"],
+            classroom_status=classroom.status,
+            focus1_minutes=classroom.focus1_minutes or 50,
+            break_minutes=classroom.break_minutes or 5,
+            focus2_minutes=classroom.focus2_minutes or 40,
+        ),
     )

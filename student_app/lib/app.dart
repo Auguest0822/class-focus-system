@@ -97,7 +97,7 @@ class _StudentAppState extends State<StudentApp> {
           primary: AppColors.primaryBlue,
           surface: AppColors.cardBackground,
         ),
-        fontFamily: 'Roboto',
+
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: AppColors.inputBackground,
@@ -141,6 +141,7 @@ class _StudentAppState extends State<StudentApp> {
               onJoinTap: () => setState(() => _selectedIndex = 1),
               onJoinClassroom: _handleJoinClassroom,
               onLogout: _handleLogout,
+              onRefreshClassrooms: () => _loadClassrooms(),
             ),
     );
   }
@@ -156,6 +157,7 @@ class _MainShell extends StatelessWidget {
     required this.onJoinTap,
     required this.onJoinClassroom,
     required this.onLogout,
+    required this.onRefreshClassrooms,
   });
 
   final Student student;
@@ -166,6 +168,7 @@ class _MainShell extends StatelessWidget {
   final VoidCallback onJoinTap;
   final Future<void> Function(String code) onJoinClassroom;
   final VoidCallback onLogout;
+  final VoidCallback onRefreshClassrooms;
 
   @override
   Widget build(BuildContext context) {
@@ -175,6 +178,7 @@ class _MainShell extends StatelessWidget {
         classrooms: classrooms,
         isLoading: isLoadingClassrooms,
         onJoinTap: onJoinTap,
+        onRefresh: onRefreshClassrooms,
       ),
       JoinClassroomPage(onJoinClassroom: onJoinClassroom),
       ProfilePage(student: student, onLogout: onLogout),

@@ -48,9 +48,16 @@ class ClassroomService {
         .toList();
   }
 
+  Future<PhaseInfo> getClassroomPhase(int classroomId) async {
+    final data =
+        await _apiClient.get('/student/classrooms/$classroomId/phase')
+            as Map<String, dynamic>;
+    return PhaseInfo.fromJson(data);
+  }
+
   Future<ClassroomReport> getClassroomReport(int classroomId) async {
     final data =
-        await _apiClient.get('/report/classrooms/$classroomId')
+        await _apiClient.get('/teacher/classrooms/$classroomId/report')
             as Map<String, dynamic>;
     return ClassroomReport.fromJson(data);
   }

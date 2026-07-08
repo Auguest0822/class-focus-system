@@ -6,7 +6,7 @@ defineProps({
   },
 })
 
-const emit = defineEmits(['view-detail', 'view-report'])
+const emit = defineEmits(['view-detail', 'view-report', 'refresh'])
 
 const tagType = (status) => {
   if (status === 'running') return 'primary'
@@ -19,7 +19,7 @@ const tagType = (status) => {
   <div class="table-card">
     <div class="table-card-header">
       <h2>最近课堂</h2>
-      <el-button>刷新</el-button>
+      <el-button @click="emit('refresh')">刷新</el-button>
     </div>
 
     <el-table :data="classes" class="clean-table">

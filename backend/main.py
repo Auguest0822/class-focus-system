@@ -86,6 +86,31 @@ def on_startup():
     # 使用目标数据库的 engine 创建/确认全部表
     Base.metadata.create_all(bind=engine)
 
+    # ── 兼容 MySQL 的增量迁移：已有表加列 ──
+    # create_all 不会修改已有表结构，所以用 information_schema 检查列是否存在
+    with engine.connect() as conn:
+        for col_name, col_default in [
+            ("focus1_minutes", 50),
+            ("break_minutes", 5),
+            ("focus2_minutes", 40),
+        ]:
+            exists = conn.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'classrooms' "
+                    "AND COLUMN_NAME = :col"
+                ),
+                {"db": settings.MYSQL_DATABASE, "col": col_name},
+            ).scalar()
+            if not exists:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE classrooms ADD COLUMN {col_name} "
+                        f"INT NOT NULL DEFAULT {col_default}"
+                    )
+                )
+        conn.commit()
+
 
 # ─────────────────────────── 注册路由 ───────────────────────────
 app.include_router(auth.router)

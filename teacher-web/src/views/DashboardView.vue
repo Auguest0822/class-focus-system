@@ -11,10 +11,14 @@ const stats = ref([])
 const classes = ref([])
 
 onMounted(async () => {
+  await loadDashboard()
+})
+
+const loadDashboard = async () => {
   const data = await getDashboard()
   stats.value = data.stats
   classes.value = data.classes
-})
+}
 
 const goDetail = (row) => router.push(`/class-detail/${row.id}`)
 const goReport = (row) => router.push(`/class-report/${row.id}`)
@@ -31,7 +35,7 @@ const goReport = (row) => router.push(`/class-report/${row.id}`)
     <StatCard v-for="item in stats" :key="item.label" :value="item.value" :label="item.label" />
   </section>
 
-  <ClassTable :classes="classes" @view-detail="goDetail" @view-report="goReport" />
+  <ClassTable :classes="classes" @view-detail="goDetail" @view-report="goReport" @refresh="loadDashboard" />
 </template>
 
 <style scoped>

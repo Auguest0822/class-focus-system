@@ -12,10 +12,10 @@ class ApiClient {
             BaseOptions(
               baseUrl: const String.fromEnvironment(
                 'API_BASE_URL',
-                defaultValue: 'http://10.0.2.2:8000/api',
+                defaultValue: 'http://localhost:8000/api',
               ),
-              connectTimeout: const Duration(seconds: 8),
-              receiveTimeout: const Duration(seconds: 8),
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 15),
               contentType: Headers.jsonContentType,
             ),
           ) {

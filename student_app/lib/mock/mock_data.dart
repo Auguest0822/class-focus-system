@@ -17,6 +17,9 @@ const mockClassrooms = [
     startTime: '2026-07-10 08:00',
     durationText: '95 分钟',
     status: ClassroomStatus.running,
+    focus1Minutes: 50,
+    breakMinutes: 5,
+    focus2Minutes: 40,
   ),
   Classroom(
     id: 2,
@@ -27,6 +30,9 @@ const mockClassrooms = [
     startTime: '2026-07-06 10:00',
     durationText: '95 分钟',
     status: ClassroomStatus.finished,
+    focus1Minutes: 50,
+    breakMinutes: 5,
+    focus2Minutes: 40,
   ),
   Classroom(
     id: 3,
@@ -37,5 +43,8 @@ const mockClassrooms = [
     startTime: '2026-07-05 14:00',
     durationText: '90 分钟',
     status: ClassroomStatus.finished,
+    focus1Minutes: 40,
+    breakMinutes: 10,
+    focus2Minutes: 40,
   ),
 ];

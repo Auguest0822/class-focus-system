@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
 import '../auth/student.dart';
+import 'active_classroom_page.dart';
 import 'classroom.dart';
+import 'classroom_service.dart';
 
 class ClassroomPage extends StatelessWidget {
   const ClassroomPage({
@@ -11,12 +13,26 @@ class ClassroomPage extends StatelessWidget {
     required this.classrooms,
     required this.isLoading,
     required this.onJoinTap,
+    this.onRefresh,
   });
 
   final Student student;
   final List<Classroom> classrooms;
   final bool isLoading;
   final VoidCallback onJoinTap;
+  final VoidCallback? onRefresh;
+
+  void _openClassroom(BuildContext context, Classroom classroom) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ActiveClassroomPage(
+          classroom: classroom,
+          classroomService: ClassroomService(),
+        ),
+      ),
+    ).then((_) => onRefresh?.call());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +62,10 @@ class ClassroomPage extends StatelessWidget {
             const _EmptyClassrooms()
           else
             for (final classroom in classrooms) ...[
-              _ClassroomCard(classroom: classroom),
+              _ClassroomCard(
+                classroom: classroom,
+                onTap: () => _openClassroom(context, classroom),
+              ),
               const SizedBox(height: 14),
             ],
         ],
@@ -144,9 +163,10 @@ class _ClassroomHeader extends StatelessWidget {
 }
 
 class _ClassroomCard extends StatelessWidget {
-  const _ClassroomCard({required this.classroom});
+  const _ClassroomCard({required this.classroom, this.onTap});
 
   final Classroom classroom;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -203,7 +223,7 @@ class _ClassroomCard extends StatelessWidget {
           _InfoRow(label: '时长', value: classroom.durationText),
           const SizedBox(height: 14),
           OutlinedButton(
-            onPressed: () {},
+            onPressed: onTap,
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.navy,
               side: const BorderSide(color: AppColors.border),

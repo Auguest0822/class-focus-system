@@ -117,16 +117,23 @@ const normalizeReportSummary = (report = {}) => [
   { label: '主要分心类型', value: report.main_distract_type ?? '--' },
 ]
 
-const createPayload = (form) => ({
-  course_no: form.courseNo,
-  course_name: form.courseName,
-  lesson_name: form.className,
-  scheduled_start_at: form.startTime,
-  focus1_minutes: Number(form.focusOne),
-  break_minutes: Number(form.breakTime),
-  focus2_minutes: Number(form.focusTwo),
-  duration_minutes: Number(form.focusOne) + Number(form.breakTime) + Number(form.focusTwo),
-})
+const createPayload = (form) => {
+  const payload = {
+    course_no: form.courseNo,
+    course_name: form.courseName,
+    lesson_name: form.className,
+    duration_minutes: Number(form.focusOne) + Number(form.breakTime) + Number(form.focusTwo),
+    focus1_minutes: Number(form.focusOne),
+    break_minutes: Number(form.breakTime),
+    focus2_minutes: Number(form.focusTwo),
+  }
+  // 只有用户填了时间才传，避免空字符串被 Pydantic 拒绝
+  if (form.startTime && form.startTime.trim()) {
+    // 后端期望 ISO 8601 格式，把 "2026-07-08 08:00" 转成 "2026-07-08T08:00:00"
+    payload.scheduled_start_at = form.startTime.trim().replace(' ', 'T')
+  }
+  return payload
+}
 
 export const getDashboard = async () => {
   const classes = await getClasses()
@@ -178,10 +185,24 @@ export const getClassDetail = async (id) => {
   }
 }
 
+export const startClassroom = async (classroomId) => {
+  const data = await request.post(`/teacher/classrooms/${classroomId}/start`)
+  return normalizeClassroom(data)
+}
+
+export const endClassroom = async (classroomId) => {
+  const data = await request.post(`/teacher/classrooms/${classroomId}/end`)
+  return normalizeClassroom(data)
+}
+
+export const getClassroomPhase = async (classroomId) => {
+  return await request.get(`/teacher/classrooms/${classroomId}/phase`)
+}
+
 export const getClassReport = async (id) => {
   const classes = await getClasses()
   const classInfo = currentOrFirstClass(classes, id)
-  const report = classInfo.id ? await request.get(`/report/classrooms/${classInfo.id}`) : {}
+  const report = classInfo.id ? await request.get(`/teacher/classrooms/${classInfo.id}/report`) : {}
 
   return {
     classInfo,

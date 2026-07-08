@@ -2,7 +2,7 @@
 老师侧接口:课堂管理、成员查询、课堂报告生成。
 """
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -18,9 +18,11 @@ from app.schemas import (
     ClassroomInfo,
     ClassroomReportInfo,
     CourseGroupInfo,
+    PhaseInfo,
     StudentSummary,
 )
 from app.utils.codegen import generate_classroom_code
+from app.utils.phase import calculate_phase
 
 router = APIRouter(prefix="/api/teacher", tags=["老师"])
 
@@ -72,6 +74,9 @@ def list_courses(
                         lesson_name=c.lesson_name or "",
                         code=c.code,
                         duration_minutes=c.duration_minutes,
+                        focus1_minutes=c.focus1_minutes or 50,
+                        break_minutes=c.break_minutes or 5,
+                        focus2_minutes=c.focus2_minutes or 40,
                         status=c.status,
                         scheduled_start_at=c.scheduled_start_at,
                         started_at=c.started_at,
@@ -114,6 +119,9 @@ def create_classroom(
         lesson_name=body.lesson_name,
         code=code,
         duration_minutes=body.duration_minutes or 45,
+        focus1_minutes=body.focus1_minutes or 50,
+        break_minutes=body.break_minutes or 5,
+        focus2_minutes=body.focus2_minutes or 40,
         status="waiting",
         scheduled_start_at=body.scheduled_start_at,
     )
@@ -184,6 +192,55 @@ def end_classroom(
     db.refresh(classroom)
     return ApiResponse(
         code=0, message="已结束", data=ClassroomInfo.model_validate(classroom)
+    )
+
+
+@router.get(
+    "/classrooms/{classroom_id}/phase",
+    summary="查询课堂倒计时阶段",
+    description="返回课堂当前所处的阶段（focus1 / break / focus2 / finished）、"
+    "剩余秒数与阶段总时长。如果已超过总时长，自动将课堂标记为已结束。"
+    "前端每 3-5 秒轮询一次即可实现多端同步倒计时。",
+    response_model=ApiResponse[PhaseInfo],
+)
+def get_classroom_phase(
+    classroom_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("teacher")),
+):
+    classroom = (
+        db.query(Classroom)
+        .filter(
+            Classroom.id == classroom_id,
+            Classroom.teacher_id == current_user.id,
+        )
+        .first()
+    )
+    if not classroom:
+        raise HTTPException(status_code=404, detail="课堂不存在")
+
+    phase_data = calculate_phase(classroom)
+
+    # 超时自动结束：把 DB 状态同步为 finished
+    if phase_data.pop("auto_finish", False):
+        classroom.status = "finished"
+        classroom.ended_at = datetime.now()
+        db.commit()
+        db.refresh(classroom)
+
+    return ApiResponse(
+        code=0,
+        message="ok",
+        data=PhaseInfo(
+            phase=phase_data["phase"],
+            phase_name=phase_data["phase_name"],
+            remaining_seconds=phase_data["remaining_seconds"],
+            total_phase_seconds=phase_data["total_phase_seconds"],
+            classroom_status=classroom.status,
+            focus1_minutes=classroom.focus1_minutes or 50,
+            break_minutes=classroom.break_minutes or 5,
+            focus2_minutes=classroom.focus2_minutes or 40,
+        ),
     )
 
 
