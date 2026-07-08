@@ -64,6 +64,7 @@ class PhaseInfo {
     required this.remainingSeconds,
     required this.totalPhaseSeconds,
     required this.classroomStatus,
+    required this.serverTime,
     required this.focus1Minutes,
     required this.breakMinutes,
     required this.focus2Minutes,
@@ -74,6 +75,7 @@ class PhaseInfo {
   final int remainingSeconds;
   final int totalPhaseSeconds;
   final String classroomStatus;
+  final double serverTime; // 服务器 Unix 时间戳(秒),用于本地倒计时校准
   final int focus1Minutes;
   final int breakMinutes;
   final int focus2Minutes;
@@ -85,6 +87,7 @@ class PhaseInfo {
       remainingSeconds: json['remaining_seconds'] as int? ?? 0,
       totalPhaseSeconds: json['total_phase_seconds'] as int? ?? 0,
       classroomStatus: json['classroom_status']?.toString() ?? 'waiting',
+      serverTime: (json['server_time'] as num?)?.toDouble() ?? 0.0,
       focus1Minutes: json['focus1_minutes'] as int? ?? 50,
       breakMinutes: json['break_minutes'] as int? ?? 5,
       focus2Minutes: json['focus2_minutes'] as int? ?? 40,

@@ -16,11 +16,14 @@ const selectedLessonId = ref('')
 const students = ref([])
 
 // ── 倒计时相关状态 ──
-const phaseInfo = ref(null)       // { phase, phase_name, remaining_seconds, total_phase_seconds, classroom_status }
+const phaseInfo = ref(null)       // { phase, phase_name, remaining_seconds, total_phase_seconds, classroom_status, server_time }
 const countdownDisplay = ref('')  // MM:SS 格式
 const countdownEnding = ref(false) // 最后 60 秒闪烁警告
+const localRemaining = ref(0)     // 本地 1 秒更新的剩余秒数(驱动进度条平滑动画)
 const isRunning = ref(false)
-let pollTimer = null
+let countdownTimer = null         // 1 秒本地倒计时
+let syncTimer = null              // 30 秒后端校准
+let localEndTime = null           // 本地阶段结束时间戳(毫秒), = Date.now() + remainingSeconds*1000
 
 // ── 格式化剩余秒数为 MM:SS ──
 const formatRemaining = (seconds) => {
@@ -29,11 +32,11 @@ const formatRemaining = (seconds) => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-// ── 当前阶段进度百分比 ──
+// ── 当前阶段进度百分比(用本地剩余秒数,每秒平滑更新) ──
 const phaseProgress = computed(() => {
   if (!phaseInfo.value || phaseInfo.value.total_phase_seconds === 0) return 0
-  const used = phaseInfo.value.total_phase_seconds - phaseInfo.value.remaining_seconds
-  return Math.round((used / phaseInfo.value.total_phase_seconds) * 100)
+  const used = phaseInfo.value.total_phase_seconds - localRemaining.value
+  return Math.min(100, Math.round((used / phaseInfo.value.total_phase_seconds) * 100))
 })
 
 // ── 阶段颜色 ──
@@ -50,30 +53,51 @@ const phaseDone = (name) => {
   return currentIdx > thisIdx
 }
 
-// ── 轮询倒计时 ──
-const startPolling = () => {
-  if (pollTimer) return
-  pollTimer = setInterval(async () => {
-    try {
-      const data = await getClassroomPhase(selectedLessonId.value)
-      phaseInfo.value = data
-      isRunning.value = data.classroom_status === 'running' && data.phase !== 'finished'
-      countdownDisplay.value = formatRemaining(data.remaining_seconds)
-      countdownEnding.value = data.remaining_seconds > 0 && data.remaining_seconds <= 60
-
-      if (!isRunning.value) stopPolling()
-    } catch {
-      // 单次失败不中断轮询
-    }
-  }, 3000)
+// ── 本地 1 秒倒计时刷新(纯本地计算,不发起网络请求) ──
+const tickLocalCountdown = () => {
+  if (localEndTime === null) return
+  const remaining = Math.max(0, Math.ceil((localEndTime - Date.now()) / 1000))
+  localRemaining.value = remaining
+  countdownDisplay.value = formatRemaining(remaining)
+  countdownEnding.value = remaining > 0 && remaining <= 60
+  // 本地倒计时归零 → 立刻向后端同步,获取下一阶段
+  if (remaining <= 0 && isRunning.value) {
+    syncFromBackend()
+  }
 }
 
-const stopPolling = () => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
+// ── 向后端校准(阶段信息 + 重置 localEndTime) ──
+const syncFromBackend = async () => {
+  try {
+    const data = await getClassroomPhase(selectedLessonId.value)
+    const prevPhase = phaseInfo.value?.phase
+    phaseInfo.value = data
+    isRunning.value = data.classroom_status === 'running' && data.phase !== 'finished'
+
+    // 用后端返回的剩余秒数重新锚定本地结束时间
+    localEndTime = Date.now() + data.remaining_seconds * 1000
+    tickLocalCountdown()
+
+    if (!isRunning.value) stopAllTimers()
+  } catch {
+    // 校准失败不中断,本地倒计时继续跑
   }
+}
+
+// ── 启动所有定时器 ──
+const startTimers = () => {
+  if (countdownTimer) return
+  syncFromBackend()  // 立即首次同步
+  countdownTimer = setInterval(tickLocalCountdown, 1000)   // 每秒刷新显示
+  syncTimer = setInterval(syncFromBackend, 30_000)          // 每 30 秒校准
+}
+
+// ── 停止所有定时器 ──
+const stopAllTimers = () => {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+  if (syncTimer) { clearInterval(syncTimer); syncTimer = null }
   countdownEnding.value = false
+  localEndTime = null
 }
 
 // ── 刷新课堂数据 ──
@@ -92,7 +116,7 @@ const handleStartClass = async () => {
   if (idx >= 0) allLessons.value[idx] = updated
   classInfo.value = { ...classInfo.value, ...updated }
   isRunning.value = true
-  startPolling()
+  startTimers()
 }
 
 // ── 提前结束课堂 ──
@@ -107,14 +131,14 @@ const handleEndClass = async () => {
     return // 用户取消
   }
   await endClassroom(selectedLessonId.value)
-  stopPolling()
+  stopAllTimers()
   isRunning.value = false
   phaseInfo.value = null
   await refreshClassData()
 }
 
 // ── 组件卸载时清理定时器 ──
-onBeforeUnmount(() => stopPolling())
+onBeforeUnmount(() => stopAllTimers())
 
 const loadClassroomMembers = async (classroomId) => {
   if (!classroomId) {
@@ -135,7 +159,7 @@ onMounted(async () => {
   // 如果课堂已经在运行中（老师刷新了页面），自动恢复倒计时
   if (data.classInfo.status === 'running') {
     isRunning.value = true
-    startPolling()
+    startTimers()
   }
 })
 
@@ -156,8 +180,8 @@ const toggleCourse = (course) => {
 }
 
 const selectLesson = async (course, lesson) => {
-  // 切换课次时停止旧轮询
-  stopPolling()
+  // 切换课次时停止旧定时器
+  stopAllTimers()
   isRunning.value = false
   phaseInfo.value = null
 
@@ -168,7 +192,7 @@ const selectLesson = async (course, lesson) => {
   // 如果切到的课次正在运行中，启动轮询
   if (lesson.status === 'running') {
     isRunning.value = true
-    startPolling()
+    startTimers()
   }
 }
 

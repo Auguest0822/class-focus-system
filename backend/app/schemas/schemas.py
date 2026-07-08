@@ -215,6 +215,7 @@ class PhaseInfo(BaseModel):
     remaining_seconds: int = Field(description="当前阶段剩余秒数,0 表示阶段已结束")
     total_phase_seconds: int = Field(description="当前阶段总秒数")
     classroom_status: str = Field(description="课堂状态: waiting / running / finished")
+    server_time: float = Field(description="服务器当前 Unix 时间戳(秒),前端用于本地倒计时校准")
     focus1_minutes: int = Field(description="第一专注段时长(分钟)")
     break_minutes: int = Field(description="课间休息时长(分钟)")
     focus2_minutes: int = Field(description="第二专注段时长(分钟)")
