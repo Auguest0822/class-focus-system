@@ -9,7 +9,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ─────────────────────────── 认证相关 ───────────────────────────
@@ -70,10 +70,21 @@ class ClassroomCreate(BaseModel):
     course_name: str = Field(description="课程名称,例如 高等数学")
     lesson_name: str = Field(description="课次名,例如 第 1 次课")
     duration_minutes: int = Field(default=45, description="课堂时长(分钟)")
+    focus1_minutes: int = Field(default=50, description="第一专注段时长(分钟)")
+    break_minutes: int = Field(default=5, description="课间休息时长(分钟)")
+    focus2_minutes: int = Field(default=40, description="第二专注段时长(分钟)")
     scheduled_start_at: Optional[datetime] = Field(
         default=None,
         description="(可选)计划开课时间,ISO 8601,例如 2026-07-06T08:00:00",
     )
+
+    @field_validator("scheduled_start_at", mode="before")
+    @classmethod
+    def _empty_str_to_none(cls, v):
+        """前端传空字符串时转为 None,避免 Pydantic datetime 解析报 422"""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class ClassroomInfo(BaseModel):
@@ -88,6 +99,9 @@ class ClassroomInfo(BaseModel):
     lesson_name: str = Field(description="课次名")
     code: str = Field(description="课堂加入码(6 位)")
     duration_minutes: int = Field(description="课堂时长(分钟)")
+    focus1_minutes: int = Field(default=50, description="第一专注段时长(分钟)")
+    break_minutes: int = Field(default=5, description="课间休息时长(分钟)")
+    focus2_minutes: int = Field(default=40, description="第二专注段时长(分钟)")
     status: str = Field(description="课堂状态:waiting(未开始)/running(进行中)/finished(已结束)")
     scheduled_start_at: Optional[datetime] = Field(default=None, description="计划开课时间")
     started_at: Optional[datetime] = Field(default=None, description="实际开始时间")
@@ -103,6 +117,9 @@ class ClassroomInCourse(BaseModel):
     lesson_name: str = Field(description="课次名")
     code: str = Field(description="课堂加入码")
     duration_minutes: int = Field(description="课堂时长(分钟)")
+    focus1_minutes: int = Field(default=50, description="第一专注段时长(分钟)")
+    break_minutes: int = Field(default=5, description="课间休息时长(分钟)")
+    focus2_minutes: int = Field(default=40, description="第二专注段时长(分钟)")
     status: str = Field(description="课堂状态:waiting/running/finished")
     scheduled_start_at: Optional[datetime] = Field(default=None, description="计划开课时间")
     started_at: Optional[datetime] = Field(default=None, description="实际开始时间")
@@ -184,6 +201,23 @@ class ClassroomReportInfo(BaseModel):
     focus_score: float = Field(description="专注度评分,0-100,越高越专注")
     suggestions: Optional[str] = Field(default=None, description="系统生成的课堂建议")
     generated_at: Optional[datetime] = Field(default=None, description="报告生成时间")
+
+
+# ─────────────────────────── 课堂阶段(倒计时) ───────────────────────────
+class PhaseInfo(BaseModel):
+    """课堂阶段信息,由 phase 端点返回给老师端和学生端。
+
+    所有客户端向后端轮询此数据,实现多端同步倒计时。
+    """
+
+    phase: str = Field(description="当前阶段: waiting / focus1 / break / focus2 / finished")
+    phase_name: str = Field(description="阶段中文名: 未开始 / 第一专注段 / 课间休息 / 第二专注段 / 已结束")
+    remaining_seconds: int = Field(description="当前阶段剩余秒数,0 表示阶段已结束")
+    total_phase_seconds: int = Field(description="当前阶段总秒数")
+    classroom_status: str = Field(description="课堂状态: waiting / running / finished")
+    focus1_minutes: int = Field(description="第一专注段时长(分钟)")
+    break_minutes: int = Field(description="课间休息时长(分钟)")
+    focus2_minutes: int = Field(description="第二专注段时长(分钟)")
 
 
 # ─────────────────────────── 统一响应包装 ───────────────────────────

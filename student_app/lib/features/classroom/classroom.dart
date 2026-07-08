@@ -10,6 +10,9 @@ class Classroom {
     required this.startTime,
     required this.durationText,
     required this.status,
+    required this.focus1Minutes,
+    required this.breakMinutes,
+    required this.focus2Minutes,
   });
 
   final int id;
@@ -20,6 +23,9 @@ class Classroom {
   final String startTime;
   final String durationText;
   final ClassroomStatus status;
+  final int focus1Minutes;
+  final int breakMinutes;
+  final int focus2Minutes;
 
   String get statusText {
     switch (status) {
@@ -43,6 +49,45 @@ class Classroom {
       startTime: _displayTime(json),
       durationText: duration > 0 ? '$duration 分钟' : '待设置',
       status: _statusFromApi(json['status']?.toString()),
+      focus1Minutes: json['focus1_minutes'] as int? ?? 50,
+      breakMinutes: json['break_minutes'] as int? ?? 5,
+      focus2Minutes: json['focus2_minutes'] as int? ?? 40,
+    );
+  }
+}
+
+/// 课堂阶段信息（从 phase 端点返回）
+class PhaseInfo {
+  const PhaseInfo({
+    required this.phase,
+    required this.phaseName,
+    required this.remainingSeconds,
+    required this.totalPhaseSeconds,
+    required this.classroomStatus,
+    required this.focus1Minutes,
+    required this.breakMinutes,
+    required this.focus2Minutes,
+  });
+
+  final String phase;
+  final String phaseName;
+  final int remainingSeconds;
+  final int totalPhaseSeconds;
+  final String classroomStatus;
+  final int focus1Minutes;
+  final int breakMinutes;
+  final int focus2Minutes;
+
+  factory PhaseInfo.fromJson(Map<String, dynamic> json) {
+    return PhaseInfo(
+      phase: json['phase']?.toString() ?? 'waiting',
+      phaseName: json['phase_name']?.toString() ?? '未开始',
+      remainingSeconds: json['remaining_seconds'] as int? ?? 0,
+      totalPhaseSeconds: json['total_phase_seconds'] as int? ?? 0,
+      classroomStatus: json['classroom_status']?.toString() ?? 'waiting',
+      focus1Minutes: json['focus1_minutes'] as int? ?? 50,
+      breakMinutes: json['break_minutes'] as int? ?? 5,
+      focus2Minutes: json['focus2_minutes'] as int? ?? 40,
     );
   }
 }

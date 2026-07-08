@@ -34,13 +34,13 @@
 </head>
 <body>
   <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
+    在 flutter_bootstrap.js 之前先声明渲染器偏好，
+    让 Flutter 使用 HTML 渲染器而不是 CanvasKit。
+    这样在无法访问 gstatic.com / fonts.gstatic.com 的网络环境中也能正常启动。
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.flutterWebRenderer = "html";
+  </script>
+  <script src="flutter_bootstrap.js" defer></script>
 </body>
 </html>

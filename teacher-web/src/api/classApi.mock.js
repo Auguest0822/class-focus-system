@@ -97,3 +97,32 @@ export const getClassReport = (id) => {
   })
 }
 
+export const startClassroom = (id) => {
+  const item = classes.find((c) => c.id === id || c.code === id)
+  if (item) {
+    item.status = 'running'
+    item.statusText = '进行中'
+  }
+  return wait(item || classes[0])
+}
+
+export const endClassroom = (id) => {
+  const item = classes.find((c) => c.id === id || c.code === id)
+  if (item) {
+    item.status = 'ended'
+    item.statusText = '已结束'
+  }
+  return wait(item || classes[0])
+}
+
+export const getClassroomPhase = () => wait({
+  phase: 'focus1',
+  phase_name: '第一专注段',
+  remaining_seconds: 1800,
+  total_phase_seconds: 3000,
+  classroom_status: 'running',
+  focus1_minutes: 50,
+  break_minutes: 5,
+  focus2_minutes: 40,
+})
+
