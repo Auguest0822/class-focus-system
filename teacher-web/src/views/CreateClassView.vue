@@ -1,14 +1,17 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { createClass } from '@/api/classApi'
+import { createClass, getClasses } from '@/api/classApi'
 import ClassCodeCard from '@/components/ClassCodeCard.vue'
 import TimeTemplateCard from '@/components/TimeTemplateCard.vue'
 import TopBar from '@/components/TopBar.vue'
 
 const router = useRouter()
 const loading = ref(false)
+const coursesLoading = ref(false)
 const generatedCode = ref('')
+const historyClasses = ref([])
 
 const form = reactive({
   courseNo: '',
@@ -22,13 +25,167 @@ const form = reactive({
   template: 'default',
 })
 
-const handleCreate = async () => {
-  loading.value = true
-  const created = await createClass(form)
-  generatedCode.value = created.code
-  loading.value = false
-  router.push(`/class-detail/${created.id}`)
+const range = (start, end) =>
+  Array.from({ length: Math.max(end - start + 1, 0) }, (_, index) => start + index)
+
+const parseLessonNumber = (lessonName = '') => {
+  const match = lessonName.toString().match(/第\s*(\d+)\s*次课|(\d+)/)
+  return Number(match?.[1] || match?.[2] || 0)
 }
+
+const parseDateTimeText = (value) => {
+  if (!value) return null
+
+  const match = value.toString().match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/)
+  if (!match) return null
+
+  const [, year, month, day, hour, minute] = match
+  return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), 0, 0)
+}
+
+const toNativeDate = (value) => {
+  if (!value) return null
+  if (value instanceof Date) return value
+  if (typeof value.toDate === 'function') return value.toDate()
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const isSameDate = (left, right) =>
+  left &&
+  right &&
+  left.getFullYear() === right.getFullYear() &&
+  left.getMonth() === right.getMonth() &&
+  left.getDate() === right.getDate()
+
+const isBeforeToday = (date) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return date.getTime() < today.getTime()
+}
+
+const disabledStartDate = (date) => isBeforeToday(date)
+
+const disabledStartHours = (_role, comparingDate) => {
+  const selectedDate = toNativeDate(comparingDate)
+  const now = new Date()
+
+  if (!isSameDate(selectedDate, now)) return []
+
+  return range(0, now.getHours() - 1)
+}
+
+const disabledStartMinutes = (hour, _role, comparingDate) => {
+  const selectedDate = toNativeDate(comparingDate)
+  const now = new Date()
+
+  if (!isSameDate(selectedDate, now) || hour !== now.getHours()) return []
+
+  return range(0, now.getMinutes())
+}
+
+const disabledStartSeconds = (hour, minute, _role, comparingDate) => {
+  const selectedDate = toNativeDate(comparingDate)
+  const now = new Date()
+
+  if (!isSameDate(selectedDate, now) || hour !== now.getHours() || minute !== now.getMinutes()) return []
+
+  return range(0, now.getSeconds())
+}
+
+const isValidFutureStartTime = () => {
+  const startTime = parseDateTimeText(form.startTime)
+  return !startTime || startTime.getTime() > Date.now()
+}
+
+const handleStartTimeChange = () => {
+  if (isValidFutureStartTime()) return
+
+  form.startTime = ''
+  ElMessage.warning('开课时间不能早于当前时间')
+}
+
+const getNextLessonName = (lessons = []) => {
+  const maxLessonNo = lessons.reduce((max, item) => Math.max(max, parseLessonNumber(item.className)), 0)
+  return `第 ${maxLessonNo + 1} 次课`
+}
+
+const courseOptions = computed(() => {
+  const courseMap = historyClasses.value.reduce((map, item) => {
+    const courseNo = item.courseNo || ''
+    const courseName = item.courseName || ''
+    const key = courseNo || courseName
+
+    if (!key) return map
+
+    if (!map.has(key)) {
+      map.set(key, {
+        value: courseNo,
+        courseNo,
+        courseName,
+        lessons: [],
+      })
+    }
+
+    map.get(key).lessons.push(item)
+    return map
+  }, new Map())
+
+  return Array.from(courseMap.values()).map((item) => ({
+    ...item,
+    nextClassName: getNextLessonName(item.lessons),
+  }))
+})
+
+const queryCourseNoSuggestions = (query, callback) => {
+  const keyword = query.trim().toLowerCase()
+  const suggestions = keyword
+    ? courseOptions.value.filter((item) => {
+        const courseNo = item.courseNo.toLowerCase()
+        const courseName = item.courseName.toLowerCase()
+        return courseNo.includes(keyword) || courseName.includes(keyword)
+      })
+    : courseOptions.value
+
+  callback(suggestions)
+}
+
+const handleCourseNoSelect = (item) => {
+  form.courseNo = item.courseNo
+  form.courseName = item.courseName
+  form.className = item.nextClassName
+}
+
+const loadCourseHistory = async () => {
+  coursesLoading.value = true
+  try {
+    historyClasses.value = await getClasses()
+  } catch (error) {
+    historyClasses.value = []
+    console.error('Failed to load course history:', error)
+  } finally {
+    coursesLoading.value = false
+  }
+}
+
+const handleCreate = async () => {
+  if (!isValidFutureStartTime()) {
+    ElMessage.warning('开课时间不能早于当前时间')
+    return
+  }
+
+  loading.value = true
+  try {
+    const created = await createClass(form)
+    generatedCode.value = created.code
+    router.push(`/class-detail/${created.id || created.code}`)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadCourseHistory)
 </script>
 
 <template>
@@ -41,7 +198,24 @@ const handleCreate = async () => {
         <el-row :gutter="18">
           <el-col :span="8">
             <el-form-item label="课号">
-              <el-input v-model="form.courseNo" size="large" />
+              <el-autocomplete
+                v-model="form.courseNo"
+                :fetch-suggestions="queryCourseNoSuggestions"
+                :trigger-on-focus="true"
+                :loading="coursesLoading"
+                clearable
+                size="large"
+                placeholder="输入或选择课号"
+                @select="handleCourseNoSelect"
+              >
+                <template #default="{ item }">
+                  <div class="course-option">
+                    <span class="course-option__no">{{ item.courseNo }}</span>
+                    <span class="course-option__name">{{ item.courseName }}</span>
+                    <span class="course-option__lesson">{{ item.nextClassName }}</span>
+                  </div>
+                </template>
+              </el-autocomplete>
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -56,7 +230,19 @@ const handleCreate = async () => {
           </el-col>
           <el-col :span="12">
             <el-form-item label="开课时间">
-              <el-input v-model="form.startTime" size="large" />
+              <el-date-picker
+                v-model="form.startTime"
+                type="datetime"
+                format="YYYY-MM-DD HH:mm"
+                value-format="YYYY-MM-DD HH:mm"
+                placeholder="选择开课时间"
+                :disabled-date="disabledStartDate"
+                :disabled-hours="disabledStartHours"
+                :disabled-minutes="disabledStartMinutes"
+                :disabled-seconds="disabledStartSeconds"
+                size="large"
+                @change="handleStartTimeChange"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -98,7 +284,7 @@ const handleCreate = async () => {
         </div>
         <div>
           <dt>课堂时间</dt>
-          <dd>待设置</dd>
+          <dd>{{ form.startTime || '待设置' }}</dd>
         </div>
         <div>
           <dt>总时长</dt>
@@ -194,6 +380,36 @@ h2 {
   display: flex;
   gap: 12px;
   margin-top: 34px;
+}
+
+:deep(.el-autocomplete),
+:deep(.el-date-editor.el-input) {
+  width: 100%;
+}
+
+.course-option {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.course-option__no {
+  color: #052b55;
+  font-weight: 800;
+}
+
+.course-option__name {
+  overflow: hidden;
+  color: #516987;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.course-option__lesson {
+  color: #2563eb;
+  font-size: 13px;
 }
 
 @media (max-width: 1060px) {
