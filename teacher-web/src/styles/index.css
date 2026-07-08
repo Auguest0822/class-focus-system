@@ -1,0 +1,95 @@
+:root {
+  --color-bg: #f4f8fb;
+  --color-primary: #12355b;
+  --color-accent: #08b5c8;
+  --color-success: #12b981;
+  --color-text: #294967;
+  --color-muted: #5f7894;
+  --color-border: #d5e5f2;
+  --el-color-primary: #12355b;
+  --el-color-success: #12b981;
+  --el-color-warning: #f97316;
+  --el-border-radius-base: 10px;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei",
+    sans-serif;
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100vh;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  font-size: 16px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.el-button--primary {
+  --el-button-bg-color: #12355b;
+  --el-button-border-color: #12355b;
+  --el-button-hover-bg-color: #164a80;
+  --el-button-hover-border-color: #164a80;
+  --el-button-active-bg-color: #0e2a48;
+  --el-button-active-border-color: #0e2a48;
+}
+
+.el-button {
+  font-weight: 700;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-input-number .el-input__wrapper {
+  min-height: 48px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px #d5e5f2 inset;
+}
+
+.el-form-item__label {
+  color: #12355b;
+  font-weight: 800;
+}
+
+.el-table th.el-table__cell {
+  font-weight: 800;
+}
+
+.el-tag.el-tag--success {
+  --el-tag-bg-color: #e2f8ee;
+  --el-tag-border-color: #e2f8ee;
+  --el-tag-text-color: #00966d;
+}
+
+.el-tag.el-tag--primary {
+  --el-tag-bg-color: #e9f1ff;
+  --el-tag-border-color: #e9f1ff;
+  --el-tag-text-color: #2563eb;
+}
+
+.el-tag.el-tag--warning {
+  --el-tag-bg-color: #fff2e8;
+  --el-tag-border-color: #fff2e8;
+  --el-tag-text-color: #d86413;
+}
+
+.el-tag.el-tag--info {
+  --el-tag-bg-color: #eef4f8;
+  --el-tag-border-color: #eef4f8;
+  --el-tag-text-color: #53687f;
+}
