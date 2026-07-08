@@ -23,6 +23,7 @@ const localRemaining = ref(0)     // 本地 1 秒更新的剩余秒数(驱动进
 const isRunning = ref(false)
 let countdownTimer = null         // 1 秒本地倒计时
 let syncTimer = null              // 30 秒后端校准
+let membersTimer = null           // 5 秒学生列表刷新
 let localEndTime = null           // 本地阶段结束时间戳(毫秒), = Date.now() + remainingSeconds*1000
 
 // ── 格式化剩余秒数为 MM:SS ──
@@ -100,6 +101,21 @@ const stopAllTimers = () => {
   localEndTime = null
 }
 
+// ── 学生列表 5 秒轮询（独立于倒计时） ──
+const startMembersPolling = () => {
+  if (membersTimer) return
+  membersTimer = setInterval(async () => {
+    if (!selectedLessonId.value) return
+    try {
+      students.value = await getMembers(selectedLessonId.value)
+    } catch { /* 静默失败 */ }
+  }, 5000)
+}
+
+const stopMembersPolling = () => {
+  if (membersTimer) { clearInterval(membersTimer); membersTimer = null }
+}
+
 // ── 刷新课堂数据 ──
 const refreshClassData = async () => {
   const data = await getClassDetail(route.params.id)
@@ -137,8 +153,11 @@ const handleEndClass = async () => {
   await refreshClassData()
 }
 
-// ── 组件卸载时清理定时器 ──
-onBeforeUnmount(() => stopAllTimers())
+// ── 组件卸载时清理所有定时器 ──
+onBeforeUnmount(() => {
+  stopAllTimers()
+  stopMembersPolling()
+})
 
 const loadClassroomMembers = async (classroomId) => {
   if (!classroomId) {
@@ -161,6 +180,9 @@ onMounted(async () => {
     isRunning.value = true
     startTimers()
   }
+
+  // 启动学生列表自动刷新（无论课堂状态）
+  startMembersPolling()
 })
 
 const allLessons = computed(() => courses.value.flatMap((course) => course.lessons))
@@ -189,7 +211,11 @@ const selectLesson = async (course, lesson) => {
   selectedLessonId.value = lesson.id
   await loadClassroomMembers(lesson.id)
 
-  // 如果切到的课次正在运行中，启动轮询
+  // 重新启动学生列表轮询
+  stopMembersPolling()
+  startMembersPolling()
+
+  // 如果切到的课次正在运行中，启动倒计时
   if (lesson.status === 'running') {
     isRunning.value = true
     startTimers()
