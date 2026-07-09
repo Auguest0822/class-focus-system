@@ -1,13 +1,21 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { login, register } from '@/api/userApi'
 
+const route = useRoute()
 const router = useRouter()
 const loginLoading = ref(false)
 const registerLoading = ref(false)
 const isRegisterMode = ref(false)
+
+// 从 401 拦截器跳转过来时，展示过期提示
+onMounted(() => {
+  if (route.query.expired === '1') {
+    ElMessage.warning('登录已过期，请重新登录')
+  }
+})
 
 const loginForm = reactive({
   username: '',

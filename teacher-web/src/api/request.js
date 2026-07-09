@@ -28,8 +28,20 @@ request.interceptors.response.use(
     return body
   },
   (error) => {
+    // 401 → token 过期或无效，清空登录态并跳转登录页
+    if (error.response?.status === 401) {
+      localStorage.removeItem('teacher_token')
+      window.location.href = '/login?expired=1'
+      return Promise.reject(new Error('登录已过期，请重新登录'))
+    }
+
+    // 网络不通 / 超时（无响应）
+    if (!error.response) {
+      return Promise.reject(new Error('网络连接失败，请检查网络设置'))
+    }
+
     const message =
-      error.response?.data?.detail || error.response?.data?.message || error.message || 'Request failed'
+      error.response?.data?.detail || error.response?.data?.message || error.message || '请求失败'
     return Promise.reject(new Error(message))
   },
 )

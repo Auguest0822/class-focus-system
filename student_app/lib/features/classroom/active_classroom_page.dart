@@ -4,9 +4,17 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/app_colors.dart';
+import '../../core/error_handler.dart';
 import 'classroom.dart';
 import 'classroom_service.dart';
 
+/// 课堂倒计时页面（学生视角）
+///
+/// 策略：
+/// - 课堂 **未开始(waiting)** 时：每 5 秒轮询后端，快速感知老师开课
+/// - 课堂 **进行中(running)** 时：本地 1 秒倒计时 + 每 30 秒后端校准，平滑不跳秒
+/// - 课堂 **已结束(finished)** 时：停止所有定时器
+/// - AppBar 右侧提供手动刷新按钮
 class ActiveClassroomPage extends StatefulWidget {
   const ActiveClassroomPage({
     super.key,
@@ -23,326 +31,330 @@ class ActiveClassroomPage extends StatefulWidget {
 
 class _ActiveClassroomPageState extends State<ActiveClassroomPage> {
   PhaseInfo? _phaseInfo;
-  Timer? _timer;
+  Timer? _countdownTimer; // 1 秒本地倒计时
+  Timer? _syncTimer; // 后端校准（waiting 5s / running 30s）
+  int? _localEndTimeMs; // 本地阶段结束时间戳(毫秒)
+  int _localRemaining = 0; // 本地 1 秒更新的剩余秒数
   bool _isLoading = true;
-  String? _errorMessage;
-  int _remainingSeconds = 0;
+  bool _isSyncing = false; // 防止手动刷新连点
 
   @override
   void initState() {
     super.initState();
-    _loadPhase();
+    _startTimers();
+  }
+
+  // ── 课堂是否在进行中 ──
+  bool get _isClassroomRunning {
+    final info = _phaseInfo;
+    if (info == null) return false;
+    return info.classroomStatus == 'running' && info.phase != 'finished';
+  }
+
+  // ── 当前应使用的同步间隔(秒) ──
+  int get _syncIntervalSeconds => _isClassroomRunning ? 30 : 5;
+
+  // ── 启动所有定时器 ──
+  void _startTimers() {
+    _syncFromBackend(showErrors: true); // 首次同步，展示异常
+    _countdownTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _tickLocalCountdown(),
+    );
+    _scheduleSync();
+  }
+
+  // ── 按当前状态调度下次同步 ──
+  void _scheduleSync() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(
+      Duration(seconds: _syncIntervalSeconds),
+      (_) => _syncFromBackend(),
+    );
+  }
+
+  // ── 本地 1 秒倒计时刷新(纯本地计算,不发起网络请求) ──
+  void _tickLocalCountdown() {
+    if (_localEndTimeMs == null) return;
+    final remaining =
+        ((_localEndTimeMs! - DateTime.now().millisecondsSinceEpoch) / 1000)
+            .ceil()
+            .clamp(0, 999999);
+    if (!mounted) return;
+    setState(() {
+      _localRemaining = remaining;
+    });
+    // 本地倒计时归零 → 立刻向后端同步,获取下一阶段
+    if (remaining <= 0 && _isClassroomRunning) {
+      _syncFromBackend();
+    }
+  }
+
+  // ── 向后端校准阶段信息 ──
+  /// [showErrors] 为 true 时向用户展示错误（首次加载 / 手动刷新）；
+  /// 后台定时器传 false，只处理 401 强制登出，不弹 SnackBar 打扰用户。
+  Future<void> _syncFromBackend({bool showErrors = false}) async {
+    if (_isSyncing) return; // 防重入
+    _isSyncing = true;
+    try {
+      final info =
+          await widget.classroomService.getClassroomPhase(widget.classroom.id);
+      if (!mounted) return;
+      final wasRunning = _isClassroomRunning;
+      setState(() {
+        _phaseInfo = info;
+        _isLoading = false;
+        // 用后端返回的剩余秒数重新锚定本地结束时间
+        _localEndTimeMs =
+            DateTime.now().millisecondsSinceEpoch + info.remainingSeconds * 1000;
+        _localRemaining = info.remainingSeconds;
+      });
+
+      // 状态切换时调整同步间隔
+      if (wasRunning != _isClassroomRunning) {
+        _scheduleSync();
+      }
+
+      // 课堂已结束 → 停止所有定时器
+      if (!_isClassroomRunning &&
+          info.classroomStatus != 'running' &&
+          info.phase == 'finished') {
+        _stopAllTimers();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      // 401 始终处理；其他错误仅在非静默模式下展示
+      if (error is ApiException && error.isUnauthorized) {
+        AppErrorHandler.show(context, error);
+      } else if (showErrors) {
+        AppErrorHandler.show(context, error);
+      }
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  // ── 手动刷新（AppBar 按钮触发） ──
+  Future<void> _handleRefresh() async {
+    await _syncFromBackend(showErrors: true);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('已刷新'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  // ── 停止所有定时器 ──
+  void _stopAllTimers() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    _syncTimer?.cancel();
+    _syncTimer = null;
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _stopAllTimers();
     super.dispose();
   }
 
-  Future<void> _loadPhase() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final phase = await widget.classroomService.getClassroomPhase(
-        widget.classroom.id,
-      );
-      if (!mounted) return;
-
-      setState(() {
-        _phaseInfo = phase;
-        _remainingSeconds = phase.remainingSeconds;
-        _isLoading = false;
-      });
-      _startCountdown();
-    } on ApiException catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = error.message;
-        _isLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = '课堂信息加载失败，请稍后重试';
-        _isLoading = false;
-      });
-    }
+  String _formatTime(int seconds) {
+    final m = (seconds ~/ 60).toString().padLeft(2, '0');
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
-  void _startCountdown() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      if (_remainingSeconds <= 0) {
-        timer.cancel();
-        return;
-      }
-      setState(() => _remainingSeconds--);
-    });
+  bool _isPhaseDone(String name) {
+    const order = ['第一专注段', '课间休息', '第二专注段'];
+    final currentIdx = order.indexOf(_phaseInfo?.phaseName ?? '');
+    final thisIdx = order.indexOf(name);
+    return currentIdx > thisIdx;
   }
 
   @override
   Widget build(BuildContext context) {
+    final classroom = widget.classroom;
+
     return Scaffold(
       backgroundColor: AppColors.pageBackground,
       appBar: AppBar(
-        title: const Text('课堂详情'),
-        backgroundColor: AppColors.pageBackground,
-        foregroundColor: AppColors.navy,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadPhase,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            children: [
-              _ClassroomSummary(classroom: widget.classroom),
-              const SizedBox(height: 16),
-              if (_isLoading)
-                const _LoadingCard()
-              else if (_errorMessage != null)
-                _ErrorCard(message: _errorMessage!, onRetry: _loadPhase)
-              else
-                _PhaseCard(
-                  phaseInfo: _phaseInfo!,
-                  remainingSeconds: _remainingSeconds,
-                ),
-              const SizedBox(height: 16),
-              _TipCard(status: widget.classroom.status),
-            ],
+        title: Text(classroom.courseName),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: _isSyncing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.refresh),
+            tooltip: '刷新',
+            onPressed: _isSyncing ? null : _handleRefresh,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ClassroomSummary extends StatelessWidget {
-  const _ClassroomSummary({required this.classroom});
-
-  final Classroom classroom;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            classroom.courseName,
-            style: const TextStyle(
-              color: AppColors.navy,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            classroom.lessonName,
-            style: const TextStyle(
-              color: AppColors.bodyText,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _DetailRow(label: '课堂码', value: classroom.code),
-          _DetailRow(label: '课号', value: classroom.courseNo),
-          _DetailRow(label: '时间', value: classroom.startTime),
-          _DetailRow(label: '时长', value: classroom.durationText),
         ],
       ),
-    );
-  }
-}
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                // ── 阶段倒计时卡片 ──
+                if (_phaseInfo != null)
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: AppColors.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.navy.withAlpha(15),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        // 阶段名称
+                        Text(
+                          _phaseInfo!.phaseName,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: _phaseInfo!.phase == 'break'
+                                ? AppColors.warning
+                                : AppColors.primaryBlue,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        // 倒计时(本地 1 秒刷新,平滑无跳秒)
+                        Text(
+                          _isClassroomRunning
+                              ? _formatTime(_localRemaining)
+                              : '--:--',
+                          style: TextStyle(
+                            fontSize: 64,
+                            fontWeight: FontWeight.w900,
+                            fontFeatures: const [
+                              FontFeature.tabularFigures(),
+                            ],
+                            color: _isClassroomRunning && _localRemaining <= 60
+                                ? Colors.red
+                                : AppColors.navy,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        // 进度条
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: _phaseInfo!.totalPhaseSeconds > 0
+                                ? 1 -
+                                    (_localRemaining /
+                                        _phaseInfo!.totalPhaseSeconds)
+                                : 0,
+                            minHeight: 8,
+                            backgroundColor: AppColors.border,
+                            color: _phaseInfo!.phase == 'break'
+                                ? AppColors.warning
+                                : AppColors.primaryBlue,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        // 阶段指示器
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: ['第一专注段', '课间休息', '第二专注段']
+                              .map((label) {
+                            final active = _phaseInfo?.phaseName == label;
+                            final done = _isPhaseDone(label);
+                            return Expanded(
+                              child: Container(
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 8, horizontal: 6),
+                                decoration: BoxDecoration(
+                                  color: active
+                                      ? AppColors.primaryBlue
+                                      : (done
+                                          ? AppColors.softGreen
+                                          : AppColors.softGray),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  label,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: active || done
+                                        ? Colors.white
+                                        : AppColors.bodyText,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
 
-class _PhaseCard extends StatelessWidget {
-  const _PhaseCard({required this.phaseInfo, required this.remainingSeconds});
+                const SizedBox(height: 22),
 
-  final PhaseInfo phaseInfo;
-  final int remainingSeconds;
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = phaseInfo.totalPhaseSeconds <= 0
-        ? 0.0
-        : 1 - (remainingSeconds / phaseInfo.totalPhaseSeconds);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.timer_outlined, color: AppColors.primaryBlue),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  phaseInfo.phaseName,
-                  style: const TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
+                // ── 课堂信息卡片 ──
+                Container(
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '课堂信息',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.navy,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _infoRow('课号', classroom.courseNo),
+                      _infoRow('课次', classroom.lessonName),
+                      _infoRow('时长', classroom.durationText),
+                      _infoRow('状态', _phaseInfo?.phaseName ?? '未开始'),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Center(
-            child: Text(
-              _formatDuration(remainingSeconds),
-              style: const TextStyle(
-                color: AppColors.navy,
-                fontSize: 44,
-                fontWeight: FontWeight.w900,
-              ),
+              ],
             ),
-          ),
-          const SizedBox(height: 20),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0).toDouble(),
-              minHeight: 10,
-              backgroundColor: AppColors.softGray,
-              color: AppColors.primaryBlue,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _DetailRow(label: '专注一', value: '${phaseInfo.focus1Minutes} 分钟'),
-          _DetailRow(label: '课间休息', value: '${phaseInfo.breakMinutes} 分钟'),
-          _DetailRow(label: '专注二', value: '${phaseInfo.focus2Minutes} 分钟'),
-        ],
-      ),
     );
   }
 
-  String _formatDuration(int seconds) {
-    final safeSeconds = seconds < 0 ? 0 : seconds;
-    final minutes = safeSeconds ~/ 60;
-    final restSeconds = safeSeconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${restSeconds.toString().padLeft(2, '0')}';
-  }
-}
-
-class _LoadingCard extends StatelessWidget {
-  const _LoadingCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 48),
-      child: Center(child: CircularProgressIndicator()),
-    );
-  }
-}
-
-class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            message,
-            style: const TextStyle(color: AppColors.bodyText, height: 1.5),
-          ),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('重试'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TipCard extends StatelessWidget {
-  const _TipCard({required this.status});
-
-  final ClassroomStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = status == ClassroomStatus.finished
-        ? '课堂已结束，教师生成报告后可查看课堂表现。'
-        : '保持本页打开可查看课堂阶段倒计时。';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.softBlue,
-        border: Border.all(color: AppColors.border),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(color: AppColors.bodyText, height: 1.6),
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _infoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          SizedBox(
-            width: 76,
-            child: Text(
-              label,
-              style: const TextStyle(color: AppColors.bodyText),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
+          Text(label, style: const TextStyle(color: AppColors.mutedText)),
+          Text(value,
               style: const TextStyle(
-                color: AppColors.navy,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
+                  fontWeight: FontWeight.w800, color: AppColors.navy)),
         ],
       ),
     );

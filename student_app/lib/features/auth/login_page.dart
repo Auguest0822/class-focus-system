@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_colors.dart';
+import '../../core/error_handler.dart';
 import '../../core/validators.dart';
 import 'auth_service.dart';
 import 'student.dart';
@@ -46,9 +47,7 @@ class _LoginPageState extends State<LoginPage> {
       widget.onLoggedIn(student);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      AppErrorHandler.show(context, error);
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
