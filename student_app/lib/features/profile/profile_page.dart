@@ -85,7 +85,7 @@ class ProfilePage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 22),
-                _ProfileRow(label: '账号', value: student.username),
+                _ProfileRow(label: '学号', value: student.studentNo ?? '-'),
                 _ProfileRow(label: '姓名', value: student.name),
               ],
             ),

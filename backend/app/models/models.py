@@ -25,16 +25,15 @@ from app.core.database import Base
 
 
 class User(Base):
-    """账号表。角色由 ``role`` 区分,学生存 ``student_no``,老师存 ``teacher_no``。"""
+    """账号表。角色由 ``role`` 区分,学生用 ``student_no``,老师用 ``teacher_no`` 登录。"""
 
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)                              # 主键
-    username = Column(String(64), unique=True, nullable=False, index=True)                   # 登录账号(全局唯一)
     password_hash = Column(String(255), nullable=False)                                      # bcrypt 哈希后存的密码
     role = Column(String(16), nullable=False, comment="teacher / student")                   # 角色
-    student_no = Column(String(32), unique=True, nullable=True)                              # 学号(学生才填)
-    teacher_no = Column(String(32), unique=True, nullable=True)                              # 工号(老师才填)
+    student_no = Column(String(32), unique=True, nullable=True, index=True)                  # 学号(学生登录凭据)
+    teacher_no = Column(String(32), unique=True, nullable=True, index=True)                  # 工号(老师登录凭据)
     name = Column(String(64), nullable=False)                                                # 显示名 / 真实姓名
     created_at = Column(DateTime, default=datetime.now)                                      # 注册时间
 

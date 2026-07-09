@@ -40,7 +40,7 @@ def create_access_token(
 
     - ``sub`` 声明: 主体,这里统一是用户 id 的字符串。
     - ``exp`` 声明: 过期时间。默认使用配置中的 ACCESS_TOKEN_EXPIRE_MINUTES。
-    - ``extra``: 额外字段,例如 ``{"username": "...", "role": "..."}``,
+    - ``extra``: 额外字段,例如 ``{"role": "student", "account": "2024001"}``,
       方便前端/接口直接读到角色信息,避免额外查库。
     """
     if expires_delta is not None:

@@ -24,15 +24,17 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _accountController = TextEditingController();
+  final _studentNoController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _isSubmitting = false;
 
   @override
   void dispose() {
     _nameController.dispose();
-    _accountController.dispose();
+    _studentNoController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -43,7 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       final student = await widget.authService.register(
         name: _nameController.text.trim(),
-        username: _accountController.text.trim(),
+        studentNo: _studentNoController.text.trim(),
         password: _passwordController.text,
       );
       widget.onRegistered(student);
@@ -85,13 +87,12 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
-                        controller: _accountController,
-                        keyboardType: TextInputType.number,
+                        controller: _studentNoController,
                         decoration: const InputDecoration(
-                          labelText: '账号',
-                          hintText: '请输入 10 位数字账号',
+                          labelText: '学号',
+                          hintText: '请输入学号',
                         ),
-                        validator: AppValidators.account,
+                        validator: AppValidators.studentNo,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
@@ -99,9 +100,22 @@ class _RegisterPageState extends State<RegisterPage> {
                         obscureText: true,
                         decoration: const InputDecoration(
                           labelText: '密码',
-                          hintText: '请输入 6-20 位字母数字组合',
+                          hintText: '请输入密码（至少 6 位）',
                         ),
-                        validator: AppValidators.passwordForRegister,
+                        validator: AppValidators.password,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _confirmPasswordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: '确认密码',
+                          hintText: '请再次输入密码',
+                        ),
+                        validator: (value) => AppValidators.confirmPassword(
+                          value,
+                          _passwordController.text,
+                        ),
                       ),
                       const SizedBox(height: 22),
                       FilledButton(
