@@ -237,6 +237,7 @@ def get_classroom_phase(
             remaining_seconds=phase_data["remaining_seconds"],
             total_phase_seconds=phase_data["total_phase_seconds"],
             classroom_status=classroom.status,
+            server_time=phase_data["server_time"],
             focus1_minutes=classroom.focus1_minutes or 50,
             break_minutes=classroom.break_minutes or 5,
             focus2_minutes=classroom.focus2_minutes or 40,
