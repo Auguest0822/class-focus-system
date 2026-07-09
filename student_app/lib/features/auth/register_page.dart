@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/error_handler.dart';
 import '../../core/validators.dart';
 import 'auth_service.dart';
 import 'student.dart';
@@ -48,9 +49,7 @@ class _RegisterPageState extends State<RegisterPage> {
       widget.onRegistered(student);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      AppErrorHandler.show(context, error);
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

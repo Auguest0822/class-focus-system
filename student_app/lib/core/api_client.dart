@@ -56,15 +56,69 @@ class ApiClient {
     try {
       return await request();
     } on DioException catch (error) {
+      throw _toApiException(error);
+    }
+  }
+
+  /// 把 Dio 异常转为带状态码的 [ApiException]。
+  ApiException _toApiException(DioException error) {
+    final statusCode = error.response?.statusCode;
+
+    // 有 HTTP 响应 → 按状态码分类
+    if (statusCode != null) {
       final data = error.response?.data;
+
+      // 优先取后端返回的 detail / message 字段
+      String? serverMessage;
       if (data is Map<String, dynamic>) {
-        throw ApiException(
-          data['detail']?.toString() ??
-              data['message']?.toString() ??
-              '请求失败，请稍后再试',
-        );
+        serverMessage =
+            data['detail']?.toString() ?? data['message']?.toString();
       }
-      throw ApiException(error.message ?? '网络连接失败');
+
+      switch (statusCode) {
+        case 401:
+          return ApiException(
+            serverMessage ?? '登录已过期，请重新登录',
+            statusCode: statusCode,
+          );
+        case 403:
+          return ApiException(
+            serverMessage ?? '无权访问该资源',
+            statusCode: statusCode,
+          );
+        case 404:
+          return ApiException(
+            serverMessage ?? '请求的资源不存在',
+            statusCode: statusCode,
+          );
+        case 422:
+          return ApiException(
+            serverMessage ?? '请求参数有误',
+            statusCode: statusCode,
+          );
+        case 500:
+          return ApiException(
+            serverMessage ?? '服务器内部错误，请稍后重试',
+            statusCode: statusCode,
+          );
+        default:
+          return ApiException(
+            serverMessage ?? '请求失败（$statusCode），请稍后再试',
+            statusCode: statusCode,
+          );
+      }
+    }
+
+    // 无 HTTP 响应 → 网络层错误
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return ApiException('请求超时，请检查网络后重试');
+      case DioExceptionType.connectionError:
+        return ApiException('网络连接失败，请检查网络设置');
+      default:
+        return ApiException(error.message ?? '网络连接失败');
     }
   }
 

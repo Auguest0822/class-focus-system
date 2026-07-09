@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_colors.dart';
+import 'core/error_handler.dart';
 import 'features/auth/auth_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
@@ -28,6 +29,25 @@ class _StudentAppState extends State<StudentApp> {
   bool _isLoadingClassrooms = false;
   int _selectedIndex = 0;
   List<Classroom> _classrooms = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // 注册全局 401 回调：强制跳转登录页
+    AppErrorHandler.onForceLogout = _handleForceLogout;
+  }
+
+  void _handleForceLogout() {
+    if (!mounted) return;
+    _authService.logout();
+    setState(() {
+      _student = null;
+      _showRegister = false;
+      _selectedIndex = 0;
+      _classrooms = [];
+    });
+    _showMessage('登录已过期，请重新登录');
+  }
 
   void _handleLogin(Student student) {
     setState(() {
@@ -58,11 +78,11 @@ class _StudentAppState extends State<StudentApp> {
         _classrooms = classrooms;
       });
     } catch (error) {
-      _showMessage(error.toString());
+      if (mounted) AppErrorHandler.show(context, error);
     } finally {
-      setState(() {
-        _isLoadingClassrooms = false;
-      });
+      if (mounted) {
+        setState(() => _isLoadingClassrooms = false);
+      }
     }
   }
 
@@ -70,17 +90,20 @@ class _StudentAppState extends State<StudentApp> {
     try {
       final joinedClassroom = await _classroomService.joinClassroom(code);
       await _loadClassrooms();
+      if (!mounted) return;
       setState(() {
         _selectedIndex = 0;
       });
       _showMessage('已加入课堂：${joinedClassroom.courseName}');
     } catch (error) {
-      _showMessage(error.toString());
+      if (mounted) AppErrorHandler.show(context, error);
     }
   }
 
   void _showMessage(String message) {
-    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
+    _messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
