@@ -26,18 +26,76 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _accountController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _accountFocusNode = FocusNode();
+  List<LoginCredential> _loginHistory = [];
   bool _isSubmitting = false;
+  bool _showLoginHistory = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLoginHistory();
+    _accountController.addListener(_handleAccountChanged);
+    _accountFocusNode.addListener(_handleAccountFocusChanged);
+  }
 
   @override
   void dispose() {
+    _accountFocusNode.dispose();
     _accountController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadLoginHistory() async {
+    final history = await widget.authService.getLoginHistory();
+    if (!mounted) return;
+    setState(() {
+      _loginHistory = history;
+      _showLoginHistory = _accountFocusNode.hasFocus && history.isNotEmpty;
+    });
+  }
+
+  void _handleAccountChanged() {
+    if (!_accountFocusNode.hasFocus) return;
+    setState(() {
+      _showLoginHistory = _filteredLoginHistory.isNotEmpty;
+    });
+  }
+
+  void _handleAccountFocusChanged() {
+    setState(() {
+      _showLoginHistory =
+          _accountFocusNode.hasFocus && _filteredLoginHistory.isNotEmpty;
+    });
+  }
+
+  List<LoginCredential> get _filteredLoginHistory {
+    final keyword = _accountController.text.trim();
+    if (keyword.isEmpty) return _loginHistory;
+    return _loginHistory
+        .where((item) => item.username.startsWith(keyword))
+        .toList();
+  }
+
+  void _selectLoginCredential(LoginCredential credential) {
+    _accountController.text = credential.username;
+    _passwordController.text = credential.password;
+    _accountController.selection = TextSelection.collapsed(
+      offset: _accountController.text.length,
+    );
+    _accountFocusNode.unfocus();
+    setState(() {
+      _showLoginHistory = false;
+    });
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _showLoginHistory = false;
+    });
 
     try {
       final student = await widget.authService.login(
@@ -76,6 +134,7 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       TextFormField(
                         controller: _accountController,
+                        focusNode: _accountFocusNode,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
                           labelText: '账号',
@@ -83,6 +142,13 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         validator: AppValidators.account,
                       ),
+                      if (_showLoginHistory) ...[
+                        const SizedBox(height: 8),
+                        _LoginHistoryDropdown(
+                          credentials: _filteredLoginHistory,
+                          onSelected: _selectLoginCredential,
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _passwordController,
@@ -111,6 +177,63 @@ class _LoginPageState extends State<LoginPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LoginHistoryDropdown extends StatelessWidget {
+  const _LoginHistoryDropdown({
+    required this.credentials,
+    required this.onSelected,
+  });
+
+  final List<LoginCredential> credentials;
+  final ValueChanged<LoginCredential> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 220),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1212355B),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        shrinkWrap: true,
+        itemCount: credentials.length,
+        separatorBuilder: (_, _) => const Divider(
+          height: 1,
+          color: AppColors.border,
+        ),
+        itemBuilder: (context, index) {
+          final credential = credentials[index];
+          return ListTile(
+            dense: true,
+            leading: const Icon(Icons.history, color: AppColors.primaryBlue),
+            title: Text(
+              credential.username,
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            subtitle: Text(
+              'Saved password',
+              style: const TextStyle(color: AppColors.bodyText),
+            ),
+            onTap: () => onSelected(credential),
+          );
+        },
       ),
     );
   }

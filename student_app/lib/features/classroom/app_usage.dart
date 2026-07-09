@@ -85,8 +85,8 @@ class ClassroomReport {
 
   factory ClassroomReport.fromJson(Map<String, dynamic> json) {
     return ClassroomReport(
-      id: json['id'] as int,
-      classroomId: json['classroom_id'] as int,
+      id: json['id'] as int? ?? 0,
+      classroomId: json['classroom_id'] as int? ?? 0,
       totalStudents: json['total_students'] as int? ?? 0,
       averageUsageSeconds: (json['average_usage_seconds'] as num? ?? 0)
           .toDouble(),
