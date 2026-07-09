@@ -4,6 +4,7 @@ import '../../core/app_colors.dart';
 import '../auth/student.dart';
 import 'active_classroom_page.dart';
 import 'classroom.dart';
+import 'classroom_report_page.dart';
 import 'classroom_service.dart';
 
 class ClassroomPage extends StatelessWidget {
@@ -23,14 +24,20 @@ class ClassroomPage extends StatelessWidget {
   final VoidCallback? onRefresh;
 
   void _openClassroom(BuildContext context, Classroom classroom) {
+    final classroomService = ClassroomService();
+    final page = classroom.status == ClassroomStatus.finished
+        ? ClassroomReportPage(
+            classroom: classroom,
+            classroomService: classroomService,
+          )
+        : ActiveClassroomPage(
+            classroom: classroom,
+            classroomService: classroomService,
+          );
+
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ActiveClassroomPage(
-          classroom: classroom,
-          classroomService: ClassroomService(),
-        ),
-      ),
+      MaterialPageRoute(builder: (_) => page),
     ).then((_) => onRefresh?.call());
   }
 

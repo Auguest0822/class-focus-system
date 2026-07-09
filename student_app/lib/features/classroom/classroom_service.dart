@@ -57,7 +57,7 @@ class ClassroomService {
 
   Future<ClassroomReport> getClassroomReport(int classroomId) async {
     final data =
-        await _apiClient.get('/teacher/classrooms/$classroomId/report')
+        await _apiClient.get('/student/classrooms/$classroomId/report')
             as Map<String, dynamic>;
     return ClassroomReport.fromJson(data);
   }
