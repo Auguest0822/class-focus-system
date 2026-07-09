@@ -12,7 +12,7 @@ class ApiClient {
             BaseOptions(
               baseUrl: const String.fromEnvironment(
                 'API_BASE_URL',
-                defaultValue: 'http://127.0.0.1:8000/api',
+                defaultValue: 'http://10.190.185.59:8000/api',
               ),
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 15),
