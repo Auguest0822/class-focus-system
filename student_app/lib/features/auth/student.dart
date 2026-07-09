@@ -1,7 +1,6 @@
 class Student {
   const Student({
     required this.name,
-    required this.username,
     this.id,
     this.role = 'student',
     this.studentNo,
@@ -9,7 +8,6 @@ class Student {
 
   final int? id;
   final String name;
-  final String username;
   final String role;
   final String? studentNo;
 
@@ -19,7 +17,6 @@ class Student {
     return Student(
       id: json['id'] as int? ?? json['user_id'] as int?,
       name: json['name']?.toString() ?? '',
-      username: json['username']?.toString() ?? '',
       role: json['role']?.toString() ?? 'student',
       studentNo: json['student_no']?.toString(),
     );

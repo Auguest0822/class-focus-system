@@ -6,12 +6,12 @@ const wait = (data, delay = 180) =>
   })
 
 export const login = async (payload) => {
-  localStorage.setItem('teacher_token', `mock-token-${payload.username || 'teacher'}`)
+  localStorage.setItem('teacher_token', `mock-token-${payload.teacherNo || 'teacher'}`)
   return wait({ teacher, token: localStorage.getItem('teacher_token') })
 }
 
 export const register = async (payload) => {
-  localStorage.setItem('teacher_token', `mock-token-${payload.username || 'teacher'}`)
+  localStorage.setItem('teacher_token', `mock-token-${payload.teacherNo || 'teacher'}`)
   return wait({
     teacher: {
       ...teacher,

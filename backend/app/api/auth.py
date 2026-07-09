@@ -27,38 +27,41 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     if body.role not in ("teacher", "student"):
         raise HTTPException(status_code=400, detail="角色必须为 teacher 或 student")
 
-    # 2) 检查账号、学号、工号是否已被占用
-    existing = (
-        db.query(User)
-        .filter(
-            or_(
-                User.username == body.username,
-                User.student_no == body.student_no if body.student_no else False,
-                User.teacher_no == body.teacher_no if body.teacher_no else False,
-            )
-        )
-        .first()
-    )
-    if existing:
-        raise HTTPException(status_code=400, detail="用户名 / 学号 / 工号 已存在")
+    # 2) 根据角色校验必填字段，并检查是否已被注册
+    if body.role == "student":
+        if not body.student_no or not body.student_no.strip():
+            raise HTTPException(status_code=400, detail="学生注册需要填写学号")
+        student_no = body.student_no.strip()
+        teacher_no = None
+        existing = db.query(User).filter(User.student_no == student_no).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="该学号已注册，请直接登录")
+    else:
+        if not body.teacher_no or not body.teacher_no.strip():
+            raise HTTPException(status_code=400, detail="老师注册需要填写工号")
+        student_no = None
+        teacher_no = body.teacher_no.strip()
+        existing = db.query(User).filter(User.teacher_no == teacher_no).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="该工号已注册，请直接登录")
 
     # 3) 新建用户(密码用 bcrypt 做哈希)
     user = User(
-        username=body.username,
         password_hash=hash_password(body.password),
         role=body.role,
         name=body.name,
-        student_no=body.student_no,
-        teacher_no=body.teacher_no,
+        student_no=student_no,
+        teacher_no=teacher_no,
     )
     db.add(user)
     db.commit()
-    db.refresh(user)  # 重新加载,拿到数据库自动生成的 id 等字段
+    db.refresh(user)
 
     # 4) 签发 token 并返回
+    account = student_no or teacher_no
     token = create_access_token(
         user.id,
-        extra={"role": user.role, "username": user.username},
+        extra={"role": user.role, "account": account},
     )
     return ApiResponse(
         code=0,
@@ -66,7 +69,6 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
         data=TokenResponse(
             access_token=token,
             user_id=user.id,
-            username=user.username,
             role=user.role,
             name=user.name,
         ),
@@ -76,28 +78,37 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 @router.post(
     "/login",
     summary="用户登录",
-    description="使用账号和密码登录,登录成功后返回 JWT access_token。"
+    description="使用学号/工号和密码登录,登录成功后返回 JWT access_token。"
     "后续接口需要在请求头中携带 `Authorization: Bearer <token>`。",
     response_model=ApiResponse[TokenResponse],
 )
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    """根据账号找用户,校验密码,并可选校验角色。"""
+    """根据学号或工号查找用户,校验密码,并可选校验角色。"""
 
-    user = db.query(User).filter(User.username == body.username).first()
-    if not user or not verify_password(body.password, user.password_hash):
+    account = body.account.strip()
+    if not account:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="请输入学号或工号"
         )
 
-    # 如果请求里指定了角色,则要匹配
-    if body.role and user.role != body.role:
+    # 按角色过滤或同时搜索两列
+    if body.role == "student":
+        user = db.query(User).filter(User.student_no == account).first()
+    elif body.role == "teacher":
+        user = db.query(User).filter(User.teacher_no == account).first()
+    else:
+        user = db.query(User).filter(
+            or_(User.student_no == account, User.teacher_no == account)
+        ).first()
+
+    if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="角色不匹配"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="学号或工号或密码错误"
         )
 
     token = create_access_token(
         user.id,
-        extra={"role": user.role, "username": user.username},
+        extra={"role": user.role, "account": account},
     )
     return ApiResponse(
         code=0,
@@ -105,7 +116,6 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         data=TokenResponse(
             access_token=token,
             user_id=user.id,
-            username=user.username,
             role=user.role,
             name=user.name,
         ),

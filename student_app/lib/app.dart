@@ -27,6 +27,7 @@ class _StudentAppState extends State<StudentApp> {
   Student? _student;
   bool _showRegister = false;
   bool _isLoadingClassrooms = false;
+  bool _isRestoring = true;
   int _selectedIndex = 0;
   List<Classroom> _classrooms = [];
 
@@ -35,6 +36,27 @@ class _StudentAppState extends State<StudentApp> {
     super.initState();
     // 注册全局 401 回调：强制跳转登录页
     AppErrorHandler.onForceLogout = _handleForceLogout;
+    _tryRestoreSession();
+  }
+
+  Future<void> _tryRestoreSession() async {
+    try {
+      final student = await _authService.restoreSession();
+      if (!mounted) return;
+      if (student != null) {
+        setState(() {
+          _student = student;
+          _isRestoring = false;
+        });
+        _loadClassrooms();
+        return;
+      }
+    } catch (_) {
+      // token 过期或网络不通都静默处理，直接让用户登录
+    }
+    if (mounted) {
+      setState(() => _isRestoring = false);
+    }
   }
 
   void _handleForceLogout() {
@@ -143,19 +165,21 @@ class _StudentAppState extends State<StudentApp> {
           ),
         ),
       ),
-      home: _student == null
-          ? (_showRegister
-                ? RegisterPage(
-                    authService: _authService,
-                    onRegistered: _handleLogin,
-                    onBackToLogin: () => setState(() => _showRegister = false),
-                  )
-                : LoginPage(
-                    authService: _authService,
-                    onLoggedIn: _handleLogin,
-                    onShowRegister: () => setState(() => _showRegister = true),
-                  ))
-          : _MainShell(
+      home: _isRestoring
+          ? const _SplashScreen()
+          : _student == null
+              ? (_showRegister
+                    ? RegisterPage(
+                        authService: _authService,
+                        onRegistered: _handleLogin,
+                        onBackToLogin: () => setState(() => _showRegister = false),
+                      )
+                    : LoginPage(
+                        authService: _authService,
+                        onLoggedIn: _handleLogin,
+                        onShowRegister: () => setState(() => _showRegister = true),
+                      ))
+              : _MainShell(
               student: _student!,
               selectedIndex: _selectedIndex,
               classrooms: _classrooms,
@@ -231,6 +255,41 @@ class _MainShell extends StatelessWidget {
             label: '我的',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.pageBackground,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '课堂专注',
+              style: TextStyle(
+                color: AppColors.navy,
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            SizedBox(height: 16),
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppColors.primaryBlue,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

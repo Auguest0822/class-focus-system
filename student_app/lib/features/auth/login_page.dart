@@ -24,9 +24,9 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _accountController = TextEditingController();
+  final _studentNoController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _accountFocusNode = FocusNode();
+  final _studentNoFocusNode = FocusNode();
   List<LoginCredential> _loginHistory = [];
   bool _isSubmitting = false;
   bool _showLoginHistory = false;
@@ -35,14 +35,14 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _loadLoginHistory();
-    _accountController.addListener(_handleAccountChanged);
-    _accountFocusNode.addListener(_handleAccountFocusChanged);
+    _studentNoController.addListener(_handleStudentNoChanged);
+    _studentNoFocusNode.addListener(_handleStudentNoFocusChanged);
   }
 
   @override
   void dispose() {
-    _accountFocusNode.dispose();
-    _accountController.dispose();
+    _studentNoFocusNode.dispose();
+    _studentNoController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -52,39 +52,39 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted) return;
     setState(() {
       _loginHistory = history;
-      _showLoginHistory = _accountFocusNode.hasFocus && history.isNotEmpty;
+      _showLoginHistory = _studentNoFocusNode.hasFocus && history.isNotEmpty;
     });
   }
 
-  void _handleAccountChanged() {
-    if (!_accountFocusNode.hasFocus) return;
+  void _handleStudentNoChanged() {
+    if (!_studentNoFocusNode.hasFocus) return;
     setState(() {
       _showLoginHistory = _filteredLoginHistory.isNotEmpty;
     });
   }
 
-  void _handleAccountFocusChanged() {
+  void _handleStudentNoFocusChanged() {
     setState(() {
       _showLoginHistory =
-          _accountFocusNode.hasFocus && _filteredLoginHistory.isNotEmpty;
+          _studentNoFocusNode.hasFocus && _filteredLoginHistory.isNotEmpty;
     });
   }
 
   List<LoginCredential> get _filteredLoginHistory {
-    final keyword = _accountController.text.trim();
+    final keyword = _studentNoController.text.trim();
     if (keyword.isEmpty) return _loginHistory;
     return _loginHistory
-        .where((item) => item.username.startsWith(keyword))
+        .where((item) => item.studentNo.startsWith(keyword))
         .toList();
   }
 
   void _selectLoginCredential(LoginCredential credential) {
-    _accountController.text = credential.username;
+    _studentNoController.text = credential.studentNo;
     _passwordController.text = credential.password;
-    _accountController.selection = TextSelection.collapsed(
-      offset: _accountController.text.length,
+    _studentNoController.selection = TextSelection.collapsed(
+      offset: _studentNoController.text.length,
     );
-    _accountFocusNode.unfocus();
+    _studentNoFocusNode.unfocus();
     setState(() {
       _showLoginHistory = false;
     });
@@ -99,7 +99,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final student = await widget.authService.login(
-        username: _accountController.text.trim(),
+        studentNo: _studentNoController.text.trim(),
         password: _passwordController.text,
       );
       widget.onLoggedIn(student);
@@ -133,14 +133,13 @@ class _LoginPageState extends State<LoginPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       TextFormField(
-                        controller: _accountController,
-                        focusNode: _accountFocusNode,
-                        keyboardType: TextInputType.number,
+                        controller: _studentNoController,
+                        focusNode: _studentNoFocusNode,
                         decoration: const InputDecoration(
-                          labelText: '账号',
-                          hintText: '请输入 10 位数字账号',
+                          labelText: '学号',
+                          hintText: '请输入学号',
                         ),
-                        validator: AppValidators.account,
+                        validator: AppValidators.studentNo,
                       ),
                       if (_showLoginHistory) ...[
                         const SizedBox(height: 8),
@@ -157,7 +156,7 @@ class _LoginPageState extends State<LoginPage> {
                           labelText: '密码',
                           hintText: '请输入密码',
                         ),
-                        validator: AppValidators.passwordForLogin,
+                        validator: AppValidators.password,
                       ),
                       const SizedBox(height: 22),
                       FilledButton(
@@ -221,15 +220,15 @@ class _LoginHistoryDropdown extends StatelessWidget {
             dense: true,
             leading: const Icon(Icons.history, color: AppColors.primaryBlue),
             title: Text(
-              credential.username,
+              credential.studentNo,
               style: const TextStyle(
                 color: AppColors.navy,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            subtitle: Text(
-              'Saved password',
-              style: const TextStyle(color: AppColors.bodyText),
+            subtitle: const Text(
+              '已保存的密码',
+              style: TextStyle(color: AppColors.bodyText),
             ),
             onTap: () => onSelected(credential),
           );
