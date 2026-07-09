@@ -27,6 +27,7 @@ class _LoginPageState extends State<LoginPage> {
   final _accountController = TextEditingController();
   final _passwordController = TextEditingController();
   final _accountFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
   List<LoginCredential> _loginHistory = [];
   bool _isSubmitting = false;
   bool _showLoginHistory = false;
@@ -42,6 +43,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void dispose() {
     _accountFocusNode.dispose();
+    _passwordFocusNode.dispose();
     _accountController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -79,15 +81,20 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _selectLoginCredential(LoginCredential credential) {
-    _accountController.text = credential.username;
-    _passwordController.text = credential.password;
-    _accountController.selection = TextSelection.collapsed(
-      offset: _accountController.text.length,
+    _accountController.value = TextEditingValue(
+      text: credential.username,
+      selection: TextSelection.collapsed(offset: credential.username.length),
+    );
+    _passwordController.value = TextEditingValue(
+      text: credential.password,
+      selection: TextSelection.collapsed(offset: credential.password.length),
     );
     _accountFocusNode.unfocus();
+    _passwordFocusNode.unfocus();
     setState(() {
       _showLoginHistory = false;
     });
+    _formKey.currentState?.validate();
   }
 
   Future<void> _submit() async {
@@ -126,7 +133,8 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 42),
               _AuthCard(
                 title: '学生登录',
-                child: Form(
+                child: AutofillGroup(
+                  child: Form(
                   key: _formKey,
                   autovalidateMode: AutovalidateMode.onUserInteraction,
                   child: Column(
@@ -136,6 +144,8 @@ class _LoginPageState extends State<LoginPage> {
                         controller: _accountController,
                         focusNode: _accountFocusNode,
                         keyboardType: TextInputType.number,
+                        autofillHints: const [AutofillHints.username],
+                        textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
                           labelText: '账号',
                           hintText: '请输入 10 位数字账号',
@@ -152,12 +162,16 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _passwordController,
+                        focusNode: _passwordFocusNode,
                         obscureText: true,
+                        autofillHints: const [AutofillHints.password],
+                        textInputAction: TextInputAction.done,
                         decoration: const InputDecoration(
                           labelText: '密码',
                           hintText: '请输入密码',
                         ),
                         validator: AppValidators.passwordForLogin,
+                        onFieldSubmitted: (_) => _submit(),
                       ),
                       const SizedBox(height: 22),
                       FilledButton(
@@ -166,6 +180,7 @@ class _LoginPageState extends State<LoginPage> {
                         child: Text(_isSubmitting ? '登录中...' : '登录'),
                       ),
                     ],
+                  ),
                   ),
                 ),
               ),
@@ -207,33 +222,57 @@ class _LoginHistoryDropdown extends StatelessWidget {
           ),
         ],
       ),
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        shrinkWrap: true,
-        itemCount: credentials.length,
-        separatorBuilder: (_, _) => const Divider(
-          height: 1,
-          color: AppColors.border,
-        ),
-        itemBuilder: (context, index) {
-          final credential = credentials[index];
-          return ListTile(
-            dense: true,
-            leading: const Icon(Icons.history, color: AppColors.primaryBlue),
-            title: Text(
-              credential.username,
-              style: const TextStyle(
-                color: AppColors.navy,
-                fontWeight: FontWeight.w800,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          shrinkWrap: true,
+          itemCount: credentials.length,
+          separatorBuilder: (_, _) => const Divider(
+            height: 1,
+            color: AppColors.border,
+          ),
+          itemBuilder: (context, index) {
+            final credential = credentials[index];
+            return InkWell(
+              onTapDown: (_) => onSelected(credential),
+              onTap: () {},
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.history, color: AppColors.primaryBlue),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            credential.username,
+                            style: const TextStyle(
+                              color: AppColors.navy,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Saved password',
+                            style: TextStyle(color: AppColors.bodyText),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            subtitle: Text(
-              'Saved password',
-              style: const TextStyle(color: AppColors.bodyText),
-            ),
-            onTap: () => onSelected(credential),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
