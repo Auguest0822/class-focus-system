@@ -1,23 +1,24 @@
 import 'dart:convert';
 
 import '../../core/api_client.dart';
+import '../../core/api_exception.dart';
 import 'student.dart';
 
 class LoginCredential {
-  const LoginCredential({required this.username, required this.password});
+  const LoginCredential({required this.studentNo, required this.password});
 
-  final String username;
+  final String studentNo;
   final String password;
 
   factory LoginCredential.fromJson(Map<String, dynamic> json) {
     return LoginCredential(
-      username: json['username']?.toString() ?? '',
+      studentNo: json['studentNo']?.toString() ?? '',
       password: json['password']?.toString() ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'username': username, 'password': password};
+    return {'studentNo': studentNo, 'password': password};
   }
 }
 
@@ -27,41 +28,44 @@ class AuthService {
   final ApiClient _apiClient;
 
   Future<Student> login({
-    required String username,
+    required String studentNo,
     required String password,
   }) async {
     final data =
         await _apiClient.post(
               '/auth/login',
-              data: {'username': username, 'password': password},
+              data: {
+                'account': studentNo,
+                'password': password,
+                'role': 'student',
+              },
             )
             as Map<String, dynamic>;
 
     await _saveSession(data);
-    await saveLoginCredential(username: username.trim(), password: password);
+    await saveLoginCredential(studentNo: studentNo.trim(), password: password);
     return Student.fromJson(data);
   }
 
   Future<Student> register({
     required String name,
-    required String username,
+    required String studentNo,
     required String password,
   }) async {
     final data =
         await _apiClient.post(
               '/auth/register',
               data: {
-                'username': username,
                 'password': password,
                 'role': 'student',
                 'name': name,
-                'student_no': username,
+                'student_no': studentNo,
               },
             )
             as Map<String, dynamic>;
 
     await _saveSession(data);
-    await saveLoginCredential(username: username.trim(), password: password);
+    await saveLoginCredential(studentNo: studentNo.trim(), password: password);
     return Student.fromJson(data);
   }
 
@@ -75,18 +79,37 @@ class AuthService {
     final token = await _apiClient.tokenStorage.getToken();
     if (token == null || token.isEmpty) return null;
 
+    // 优先用 /auth/me 校验 token 是否仍然有效
+    try {
+      return await getCurrentUser();
+    } on ApiException catch (e) {
+      if (e.isUnauthorized) {
+        // token 已过期，清除并让用户重新登录
+        await logout();
+        return null;
+      }
+      // 其他服务端错误（500 等），回退到缓存
+    } catch (_) {
+      // 网络不通，回退到本地缓存
+    }
+
+    // 离线回退：使用上次缓存的用户数据
     final cachedStudent = await _apiClient.tokenStorage.getStudentJson();
     if (cachedStudent != null && cachedStudent.isNotEmpty) {
-      final data = jsonDecode(cachedStudent);
-      if (data is Map<String, dynamic>) {
-        return Student.fromJson(data);
-      }
-      if (data is Map) {
-        return Student.fromJson(Map<String, dynamic>.from(data));
+      try {
+        final data = jsonDecode(cachedStudent);
+        if (data is Map<String, dynamic>) {
+          return Student.fromJson(data);
+        }
+        if (data is Map) {
+          return Student.fromJson(Map<String, dynamic>.from(data));
+        }
+      } catch (_) {
+        // JSON 解析失败
       }
     }
 
-    return getCurrentUser();
+    return null;
   }
 
   Future<void> logout() {
@@ -103,20 +126,20 @@ class AuthService {
     return data
         .whereType<Map>()
         .map((item) => LoginCredential.fromJson(Map<String, dynamic>.from(item)))
-        .where((item) => item.username.isNotEmpty && item.password.isNotEmpty)
+        .where((item) => item.studentNo.isNotEmpty && item.password.isNotEmpty)
         .toList();
   }
 
   Future<void> saveLoginCredential({
-    required String username,
+    required String studentNo,
     required String password,
   }) async {
-    if (username.isEmpty || password.isEmpty) return;
+    if (studentNo.isEmpty || password.isEmpty) return;
 
     final history = await getLoginHistory();
     final updated = [
-      LoginCredential(username: username, password: password),
-      ...history.where((item) => item.username != username),
+      LoginCredential(studentNo: studentNo, password: password),
+      ...history.where((item) => item.studentNo != studentNo),
     ].take(8).toList();
 
     await _apiClient.tokenStorage.saveLoginHistoryJson(

@@ -16,20 +16,19 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class LoginRequest(BaseModel):
     """登录请求体。"""
 
-    username: str = Field(description="登录账号")
+    account: str = Field(description="学号 或 工号")
     password: str = Field(description="登录密码")
-    role: Optional[str] = Field(default=None, description="可选:teacher / student,用于按角色登录")
+    role: Optional[str] = Field(default=None, description="角色:teacher / student")
 
 
 class RegisterRequest(BaseModel):
     """注册请求体。"""
 
-    username: str = Field(description="登录账号,全局唯一")
     password: str = Field(description="登录密码")
     role: str = Field(description="角色:teacher 或 student")
     name: str = Field(description="真实姓名")
-    student_no: Optional[str] = Field(default=None, description="学号(学生必填)")
-    teacher_no: Optional[str] = Field(default=None, description="工号(老师必填)")
+    student_no: Optional[str] = Field(default=None, description="学号(role=student 时必填)")
+    teacher_no: Optional[str] = Field(default=None, description="工号(role=teacher 时必填)")
 
 
 class TokenResponse(BaseModel):
@@ -40,7 +39,6 @@ class TokenResponse(BaseModel):
     )
     token_type: str = Field(default="bearer", description="令牌类型,固定为 bearer")
     user_id: int = Field(description="用户 ID")
-    username: str = Field(description="登录账号")
     role: str = Field(description="角色:teacher / student")
     name: str = Field(description="真实姓名")
 
@@ -51,7 +49,6 @@ class UserInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(description="用户 ID")
-    username: str = Field(description="登录账号")
     role: str = Field(description="角色")
     name: str = Field(description="真实姓名")
     student_no: Optional[str] = Field(default=None, description="学号")

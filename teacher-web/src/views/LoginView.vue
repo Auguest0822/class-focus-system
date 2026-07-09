@@ -18,30 +18,35 @@ onMounted(() => {
 })
 
 const loginForm = reactive({
-  username: '',
+  teacherNo: '',
   password: '',
 })
 
 const registerForm = reactive({
   name: '',
-  username: '',
+  teacherNo: '',
   password: '',
   confirmPassword: '',
 })
 
 const validateRegisterForm = () => {
   if (!registerForm.name.trim()) {
-    ElMessage.warning('请输入老师姓名')
+    ElMessage.warning('请输入姓名')
     return false
   }
 
-  if (!registerForm.username.trim()) {
-    ElMessage.warning('请输入账号')
+  if (!registerForm.teacherNo.trim()) {
+    ElMessage.warning('请输入工号')
     return false
   }
 
   if (!registerForm.password) {
     ElMessage.warning('请输入密码')
+    return false
+  }
+
+  if (registerForm.password.length < 6) {
+    ElMessage.warning('密码至少需要 6 位')
     return false
   }
 
@@ -72,7 +77,7 @@ const handleRegister = async () => {
   try {
     await register(registerForm)
     await login({
-      username: registerForm.username,
+      teacherNo: registerForm.teacherNo,
       password: registerForm.password,
     })
     ElMessage.success('注册成功')
@@ -115,11 +120,11 @@ const handleRegister = async () => {
       </p>
 
       <el-form v-if="!isRegisterMode" label-position="top" :model="loginForm" @submit.prevent>
-        <el-form-item label="账号">
-          <el-input v-model="loginForm.username" size="large" />
+        <el-form-item label="工号">
+          <el-input v-model="loginForm.teacherNo" size="large" placeholder="请输入工号" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="loginForm.password" size="large" type="password" show-password />
+          <el-input v-model="loginForm.password" size="large" type="password" show-password placeholder="请输入密码" />
         </el-form-item>
         <el-button class="login-button" type="primary" size="large" :loading="loginLoading" @click="handleLogin">
           登录系统
@@ -128,16 +133,16 @@ const handleRegister = async () => {
 
       <el-form v-else label-position="top" :model="registerForm" @submit.prevent>
         <el-form-item label="姓名">
-          <el-input v-model="registerForm.name" size="large" />
+          <el-input v-model="registerForm.name" size="large" placeholder="请输入姓名" />
         </el-form-item>
-        <el-form-item label="账号">
-          <el-input v-model="registerForm.username" size="large" />
+        <el-form-item label="工号">
+          <el-input v-model="registerForm.teacherNo" size="large" placeholder="请输入工号" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="registerForm.password" size="large" type="password" show-password />
+          <el-input v-model="registerForm.password" size="large" type="password" show-password placeholder="请输入密码（至少 6 位）" />
         </el-form-item>
         <el-form-item label="确认密码">
-          <el-input v-model="registerForm.confirmPassword" size="large" type="password" show-password />
+          <el-input v-model="registerForm.confirmPassword" size="large" type="password" show-password placeholder="请再次输入密码" />
         </el-form-item>
         <el-button class="login-button" type="primary" size="large" :loading="registerLoading" @click="handleRegister">
           注册并登录

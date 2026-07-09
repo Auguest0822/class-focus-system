@@ -1,7 +1,7 @@
 import request from './request'
 
 const normalizeTeacher = (data = {}) => {
-  const name = data.name || data.username || 'Teacher'
+  const name = data.name || 'Teacher'
 
   return {
     ...data,
@@ -11,7 +11,11 @@ const normalizeTeacher = (data = {}) => {
 }
 
 export const login = async (payload) => {
-  const data = await request.post('/auth/login', payload)
+  const data = await request.post('/auth/login', {
+    account: payload.teacherNo,
+    password: payload.password,
+    role: 'teacher',
+  })
   const token = data?.access_token || data?.token || data?.accessToken
 
   if (token) {
@@ -23,11 +27,10 @@ export const login = async (payload) => {
 
 export const register = async (payload) => {
   const data = await request.post('/auth/register', {
-    username: payload.username,
     password: payload.password,
     role: 'teacher',
     name: payload.name,
-    teacher_no: payload.username,
+    teacher_no: payload.teacherNo,
   })
   const token = data?.access_token || data?.token || data?.accessToken
 

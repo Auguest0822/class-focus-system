@@ -62,8 +62,8 @@ const normalizeClassroom = (item = {}) => {
 
 const normalizeStudent = (item = {}) => ({
   ...item,
-  id: item.student_no ?? item.username ?? item.id,
-  name: item.name ?? item.student_name ?? item.username ?? '',
+  id: item.student_no ?? item.id,
+  name: item.name ?? item.student_name ?? '',
   joinTime: toDateTimeText(item.joined_at ?? item.joinTime),
   status: item.has_uploaded_usage ? '数据已上传' : item.status || '已加入',
   statusType: item.has_uploaded_usage ? 'success' : item.statusType || 'primary',

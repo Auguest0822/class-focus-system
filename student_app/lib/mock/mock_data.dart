@@ -3,7 +3,6 @@ import '../features/classroom/classroom.dart';
 
 const mockStudent = Student(
   name: '李明',
-  username: '2024010101',
   studentNo: '2024010101',
 );
 
