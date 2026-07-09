@@ -72,6 +72,7 @@ class ClassroomReport {
     this.topApps,
     this.suggestions,
     this.generatedAt,
+    this.appUsageDetails = const [],
   });
 
   final int id;
@@ -82,6 +83,7 @@ class ClassroomReport {
   final String? topApps;
   final String? suggestions;
   final String? generatedAt;
+  final List<AppUsageDetail> appUsageDetails;
 
   factory ClassroomReport.fromJson(Map<String, dynamic> json) {
     return ClassroomReport(
@@ -94,6 +96,44 @@ class ClassroomReport {
       topApps: json['top_apps']?.toString(),
       suggestions: json['suggestions']?.toString(),
       generatedAt: json['generated_at']?.toString(),
+      appUsageDetails: _parseAppUsageDetails(json['app_usage_details']),
+    );
+  }
+
+  static List<AppUsageDetail> _parseAppUsageDetails(dynamic value) {
+    if (value is! List) return const [];
+
+    return value
+        .whereType<Map<String, dynamic>>()
+        .map(AppUsageDetail.fromJson)
+        .where((item) => item.usageSeconds > 0)
+        .toList()
+      ..sort((a, b) => b.usageSeconds.compareTo(a.usageSeconds));
+  }
+}
+
+class AppUsageDetail {
+  const AppUsageDetail({
+    required this.appName,
+    required this.usageSeconds,
+    this.appPackage,
+  });
+
+  final String appName;
+  final int usageSeconds;
+  final String? appPackage;
+
+  factory AppUsageDetail.fromJson(Map<String, dynamic> json) {
+    final appName =
+        json['app_name']?.toString() ??
+        json['name']?.toString() ??
+        json['app_package']?.toString() ??
+        'Unknown App';
+
+    return AppUsageDetail(
+      appName: appName,
+      usageSeconds: json['usage_seconds'] as int? ?? 0,
+      appPackage: json['app_package']?.toString(),
     );
   }
 }

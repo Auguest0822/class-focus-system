@@ -26,6 +26,7 @@ class _StudentAppState extends State<StudentApp> {
 
   Student? _student;
   bool _showRegister = false;
+  bool _isRestoringSession = true;
   bool _isLoadingClassrooms = false;
   int _selectedIndex = 0;
   List<Classroom> _classrooms = [];
@@ -35,6 +36,29 @@ class _StudentAppState extends State<StudentApp> {
     super.initState();
     // 注册全局 401 回调：强制跳转登录页
     AppErrorHandler.onForceLogout = _handleForceLogout;
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    try {
+      final student = await _authService.restoreSession();
+      if (!mounted) return;
+
+      if (student != null) {
+        setState(() {
+          _student = student;
+          _showRegister = false;
+          _selectedIndex = 0;
+        });
+        await _loadClassrooms();
+      }
+    } catch (_) {
+      await _authService.logout();
+    } finally {
+      if (mounted) {
+        setState(() => _isRestoringSession = false);
+      }
+    }
   }
 
   void _handleForceLogout() {
@@ -101,8 +125,40 @@ class _StudentAppState extends State<StudentApp> {
   }
 
   void _showMessage(String message) {
-    _messengerKey.currentState?.showSnackBar(
-      SnackBar(content: Text(message)),
+    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _buildHome() {
+    if (_isRestoringSession) {
+      return const _StartupLoadingPage();
+    }
+
+    if (_student == null) {
+      if (_showRegister) {
+        return RegisterPage(
+          authService: _authService,
+          onRegistered: _handleLogin,
+          onBackToLogin: () => setState(() => _showRegister = false),
+        );
+      }
+
+      return LoginPage(
+        authService: _authService,
+        onLoggedIn: _handleLogin,
+        onShowRegister: () => setState(() => _showRegister = true),
+      );
+    }
+
+    return _MainShell(
+      student: _student!,
+      selectedIndex: _selectedIndex,
+      classrooms: _classrooms,
+      isLoadingClassrooms: _isLoadingClassrooms,
+      onTabChanged: (index) => setState(() => _selectedIndex = index),
+      onJoinTap: () => setState(() => _selectedIndex = 1),
+      onJoinClassroom: _handleJoinClassroom,
+      onLogout: _handleLogout,
+      onRefreshClassrooms: () => _loadClassrooms(),
     );
   }
 
@@ -143,29 +199,18 @@ class _StudentAppState extends State<StudentApp> {
           ),
         ),
       ),
-      home: _student == null
-          ? (_showRegister
-                ? RegisterPage(
-                    authService: _authService,
-                    onRegistered: _handleLogin,
-                    onBackToLogin: () => setState(() => _showRegister = false),
-                  )
-                : LoginPage(
-                    authService: _authService,
-                    onLoggedIn: _handleLogin,
-                    onShowRegister: () => setState(() => _showRegister = true),
-                  ))
-          : _MainShell(
-              student: _student!,
-              selectedIndex: _selectedIndex,
-              classrooms: _classrooms,
-              isLoadingClassrooms: _isLoadingClassrooms,
-              onTabChanged: (index) => setState(() => _selectedIndex = index),
-              onJoinTap: () => setState(() => _selectedIndex = 1),
-              onJoinClassroom: _handleJoinClassroom,
-              onLogout: _handleLogout,
-              onRefreshClassrooms: () => _loadClassrooms(),
-            ),
+      home: _buildHome(),
+    );
+  }
+}
+
+class _StartupLoadingPage extends StatelessWidget {
+  const _StartupLoadingPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: SafeArea(child: Center(child: CircularProgressIndicator())),
     );
   }
 }

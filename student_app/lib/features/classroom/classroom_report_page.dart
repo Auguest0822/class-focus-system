@@ -83,8 +83,11 @@ class _ClassroomReportPageState extends State<ClassroomReportPage> {
                 const _LoadingCard()
               else if (_errorMessage != null)
                 _ErrorCard(message: _errorMessage!, onRetry: _loadReport)
-              else
+              else ...[
                 _ReportCard(report: _report!),
+                const SizedBox(height: 16),
+                _SoftwareUsageCard(items: _report!.appUsageDetails),
+              ],
             ],
           ),
         ),
@@ -256,6 +259,117 @@ class _MetricTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _SoftwareUsageCard extends StatelessWidget {
+  const _SoftwareUsageCard({required this.items});
+
+  final List<AppUsageDetail> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxSeconds = items.isEmpty
+        ? 0
+        : items
+              .map((item) => item.usageSeconds)
+              .reduce((max, value) => value > max ? value : max);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Software Usage',
+            style: TextStyle(
+              color: AppColors.navy,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (items.isEmpty)
+            const Text(
+              'No app usage records yet.',
+              style: TextStyle(color: AppColors.bodyText, height: 1.5),
+            )
+          else
+            for (final item in items) ...[
+              _SoftwareUsageRow(
+                item: item,
+                progress: maxSeconds <= 0
+                    ? 0.0
+                    : item.usageSeconds / maxSeconds,
+              ),
+              if (item != items.last) const SizedBox(height: 16),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SoftwareUsageRow extends StatelessWidget {
+  const _SoftwareUsageRow({required this.item, required this.progress});
+
+  final AppUsageDetail item;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                item.appName,
+                style: const TextStyle(
+                  color: AppColors.navy,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _formatUsageSeconds(item.usageSeconds),
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: progress.clamp(0.0, 1.0).toDouble(),
+            minHeight: 8,
+            backgroundColor: AppColors.softGray,
+            color: AppColors.primaryBlue,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatUsageSeconds(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+
+    if (hours > 0 && minutes > 0) return '${hours}h ${minutes}min';
+    if (hours > 0) return '${hours}h';
+    return '${minutes} min';
   }
 }
 
