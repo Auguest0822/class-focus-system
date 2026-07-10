@@ -185,6 +185,26 @@ class StudentSummary(BaseModel):
     )
 
 
+# ─────────────────────────── 学生报告子结构 ───────────────────────────
+class StudentAppUsage(BaseModel):
+    """单个 App 使用记录（属于某个学生）。"""
+
+    app_name: str = Field(description="应用名称,如 微信")
+    app_package: str = Field(default="", description="包名,如 com.tencent.mm")
+    usage_seconds: int = Field(description="使用秒数")
+
+
+class StudentReportItem(BaseModel):
+    """报告中单个学生的统计行。"""
+
+    student_name: str = Field(description="学生姓名")
+    student_no: Optional[str] = Field(default=None, description="学号")
+    total_seconds: int = Field(description="该学生在本次课堂中分心总秒数")
+    apps: list[StudentAppUsage] = Field(
+        default_factory=list, description="各 App 使用明细（按秒数降序）"
+    )
+
+
 class ClassroomReportInfo(BaseModel):
     """课堂报告响应体。"""
 
@@ -198,6 +218,9 @@ class ClassroomReportInfo(BaseModel):
     focus_score: float = Field(description="专注度评分,0-100,越高越专注")
     suggestions: Optional[str] = Field(default=None, description="系统生成的课堂建议")
     generated_at: Optional[datetime] = Field(default=None, description="报告生成时间")
+    student_stats: list[StudentReportItem] = Field(
+        default_factory=list, description="每位学生的分心统计与 App 明细"
+    )
 
 
 # ─────────────────────────── 课堂阶段(倒计时) ───────────────────────────

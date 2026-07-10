@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/app_colors.dart';
+import '../../core/app_usage_tracker.dart';
 import '../../core/error_handler.dart';
+import 'app_usage.dart';
 import 'classroom.dart';
 import 'classroom_service.dart';
 
@@ -29,7 +31,8 @@ class ActiveClassroomPage extends StatefulWidget {
   State<ActiveClassroomPage> createState() => _ActiveClassroomPageState();
 }
 
-class _ActiveClassroomPageState extends State<ActiveClassroomPage> {
+class _ActiveClassroomPageState extends State<ActiveClassroomPage>
+    with WidgetsBindingObserver {
   PhaseInfo? _phaseInfo;
   Timer? _countdownTimer; // 1 秒本地倒计时
   Timer? _syncTimer; // 后端校准（waiting 5s / running 30s）
@@ -37,10 +40,16 @@ class _ActiveClassroomPageState extends State<ActiveClassroomPage> {
   int _localRemaining = 0; // 本地 1 秒更新的剩余秒数
   bool _isLoading = true;
   bool _isSyncing = false; // 防止手动刷新连点
+  bool _isUploading = false; // 防止并发上传
+  bool _trackingEnabled = false; // 是否已获得使用情况访问权限
+
+  final AppUsageTracker _tracker = AppUsageTracker();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initTracking();
     _startTimers();
   }
 
@@ -115,11 +124,18 @@ class _ActiveClassroomPageState extends State<ActiveClassroomPage> {
         _scheduleSync();
       }
 
-      // 课堂已结束 → 停止所有定时器
+      // 课堂进行中 → 顺便上传积压的 App 使用数据
+      if (_isClassroomRunning) {
+        _uploadPendingUsage();
+      }
+
+      // 课堂已结束 → 停止所有定时器，上传最后一批数据
       if (!_isClassroomRunning &&
           info.classroomStatus != 'running' &&
           info.phase == 'finished') {
         _stopAllTimers();
+        _uploadPendingUsage();
+        _tracker.stopTracking();
       }
     } catch (error) {
       if (!mounted) return;
@@ -148,6 +164,94 @@ class _ActiveClassroomPageState extends State<ActiveClassroomPage> {
     }
   }
 
+  // ── App 使用时长追踪 ────────────────────────────────────────────
+
+  Future<void> _initTracking() async {
+    final granted = await _tracker.isPermissionGranted();
+    if (!mounted) return;
+    setState(() => _trackingEnabled = granted);
+    if (granted) {
+      _tracker.startTracking();
+    } else {
+      // 首次进入且无权限 → 弹窗引导；用户也可以点底部状态栏重新打开
+      _showPermissionDialog();
+    }
+  }
+
+  /// 重新检查权限（从设置页回来后调用）。
+  Future<void> _recheckPermission() async {
+    final granted = await _tracker.isPermissionGranted();
+    if (!mounted) return;
+    if (granted && !_tracker.isTracking) {
+      _tracker.startTracking();
+      setState(() => _trackingEnabled = true);
+    }
+  }
+
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('需要开启使用情况访问'),
+        content: const Text(
+          '为了记录课堂期间的 App 使用情况，'
+          '需要在系统设置中开启"使用情况访问权限"。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('暂不开启'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx); // 先关闭对话框
+              await _tracker.openUsageAccessSettings();
+              // 从设置返回后重新检查
+              _recheckPermission();
+            },
+            child: const Text('去设置'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 上传所有积压数据。上传成功才清空 _pendingRecords，
+  /// 失败则保留数据下次重试。[_isUploading] 防止并发调用。
+  Future<void> _uploadPendingUsage() async {
+    if (!_tracker.isTracking || _isUploading) return;
+    final records = _tracker.pendingRecords;
+    if (records.isEmpty) return;
+    _isUploading = true;
+    try {
+      await widget.classroomService.uploadUsageRecords(
+        classroomId: widget.classroom.id,
+        records: records,
+      );
+      // 上传成功 → 清空已上传的记录
+      _tracker.clearPendingRecords();
+    } catch (_) {
+      // 上传失败 → 数据保留，下次同步时重试
+    } finally {
+      _isUploading = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.paused) {
+      _tracker.onAppBackground();
+    } else if (state == AppLifecycleState.resumed) {
+      // 从设置页返回后可能已授权 → 重新检查
+      if (!_tracker.isTracking && mounted) {
+        await _recheckPermission();
+      }
+      await _tracker.onAppForeground();
+      // 回到前台立即上传一次（失败也不丢数据，_pendingRecords 保留）
+      if (mounted) await _uploadPendingUsage();
+    }
+  }
+
   // ── 停止所有定时器 ──
   void _stopAllTimers() {
     _countdownTimer?.cancel();
@@ -158,6 +262,9 @@ class _ActiveClassroomPageState extends State<ActiveClassroomPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _uploadPendingUsage();
+    _tracker.stopTracking();
     _stopAllTimers();
     super.dispose();
   }
@@ -340,8 +447,63 @@ class _ActiveClassroomPageState extends State<ActiveClassroomPage> {
                     ],
                   ),
                 ),
+
+                const SizedBox(height: 22),
+
+                // ── 追踪状态指示条 ──
+                _buildTrackingStatus(),
               ],
             ),
+    );
+  }
+
+  Widget _buildTrackingStatus() {
+    return GestureDetector(
+      onTap: _trackingEnabled
+          ? null
+          : () => _showPermissionDialog(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        decoration: BoxDecoration(
+          color: _trackingEnabled
+              ? AppColors.softGreen
+              : const Color(0xFFFFF3E0),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _trackingEnabled
+                ? AppColors.success.withAlpha(60)
+                : AppColors.warning.withAlpha(80),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _trackingEnabled ? Icons.visibility : Icons.visibility_off,
+              size: 20,
+              color: _trackingEnabled
+                  ? AppColors.success
+                  : AppColors.warning,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _trackingEnabled ? '正在记录 App 使用情况' : '未开启使用记录',
+                style: TextStyle(
+                  color: _trackingEnabled
+                      ? AppColors.success
+                      : const Color(0xFFE65100),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            if (!_trackingEnabled)
+              const Icon(Icons.chevron_right, color: Color(0xFFE65100)),
+            if (_trackingEnabled)
+              const Icon(Icons.check_circle, color: AppColors.success, size: 18),
+          ],
+        ),
+      ),
     );
   }
 

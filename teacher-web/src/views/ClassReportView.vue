@@ -131,17 +131,31 @@ const emptyReportText = computed(() => {
                   <h2>学生专注统计</h2>
                   <el-tag type="success" effect="light" round>已生成</el-tag>
                 </div>
-                <el-table :data="studentStats" class="report-table">
-                  <el-table-column prop="name" label="学生" min-width="110" />
-                  <el-table-column label="专注时长" min-width="140">
-                    <template #default="{ row }">{{ row.focusMinutes }} 分钟</template>
-                  </el-table-column>
-                  <el-table-column label="分心时长" min-width="140">
-                    <template #default="{ row }">{{ row.distractMinutes }} 分钟</template>
-                  </el-table-column>
-                  <el-table-column prop="focusRate" label="专注率" min-width="120" />
-                  <el-table-column prop="mainDistractType" label="主要分心类型" min-width="150" />
-                </el-table>
+                <div class="panel-body">
+                  <el-empty v-if="!studentStats.length" description="暂无学生数据" />
+                  <el-collapse v-else>
+                    <el-collapse-item v-for="(student, index) in studentStats" :key="index" :name="index">
+                      <template #title>
+                        <div class="student-collapse-title">
+                          <span class="student-name">{{ student.name }}</span>
+                          <span class="student-no" v-if="student.studentNo">{{ student.studentNo }}</span>
+                          <el-tag type="warning" size="small" effect="plain" round>
+                            分心 {{ student.distractMinutes }} 分钟
+                          </el-tag>
+                        </div>
+                      </template>
+                      <el-table v-if="student.apps.length" :data="student.apps" size="small" class="app-detail-table">
+                        <el-table-column prop="name" label="应用" />
+                        <el-table-column label="使用时长" width="150">
+                          <template #default="{ row }">
+                            {{ Math.floor(row.seconds / 60) }} 分 {{ row.seconds % 60 }} 秒
+                          </template>
+                        </el-table-column>
+                      </el-table>
+                      <p v-else class="no-apps-text">暂无使用记录</p>
+                    </el-collapse-item>
+                  </el-collapse>
+                </div>
               </section>
 
               <section class="panel app-panel">
@@ -368,6 +382,39 @@ h2 {
 .empty-report p {
   margin: 10px 0 0;
   color: #5f7894;
+}
+
+.panel-body {
+  padding: 20px 24px;
+}
+
+.student-collapse-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.student-name {
+  font-weight: 800;
+  color: #12355b;
+}
+
+.student-no {
+  color: #5f7894;
+  font-size: 13px;
+}
+
+.app-detail-table {
+  margin-top: 4px;
+  --el-table-header-bg-color: #fbfdff;
+}
+
+.no-apps-text {
+  padding: 12px 0;
+  margin: 0;
+  color: #9ca3af;
+  font-size: 14px;
 }
 
 @media (max-width: 1100px) {

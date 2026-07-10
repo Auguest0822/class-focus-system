@@ -204,11 +204,23 @@ export const getClassReport = async (id) => {
   const classInfo = currentOrFirstClass(classes, id)
   const report = classInfo.id ? await request.get(`/teacher/classrooms/${classInfo.id}/report`) : {}
 
+  const studentStats = (report.student_stats || []).map((s) => ({
+    name: s.student_name || s.student_no || '未知',
+    studentNo: s.student_no || '',
+    totalSeconds: s.total_seconds,
+    distractMinutes: Math.round(s.total_seconds / 60),
+    apps: (s.apps || []).map((a) => ({
+      name: a.app_name || a.app_package || '未知',
+      package: a.app_package || '',
+      seconds: a.usage_seconds,
+    })),
+  }))
+
   return {
     classInfo,
     courses: groupByCourse(classes),
     summary: normalizeReportSummary(report),
-    studentStats: report.student_stats || report.studentStats || [],
+    studentStats,
     appUsage: report.app_usage || report.appUsage || [],
   }
 }
