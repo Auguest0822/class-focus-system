@@ -74,9 +74,9 @@ def list_courses(
                         lesson_name=c.lesson_name or "",
                         code=c.code,
                         duration_minutes=c.duration_minutes,
-                        focus1_minutes=c.focus1_minutes or 50,
+                        focus1_minutes=c.focus1_minutes or 45,
                         break_minutes=c.break_minutes or 5,
-                        focus2_minutes=c.focus2_minutes or 40,
+                        focus2_minutes=c.focus2_minutes or 45,
                         status=c.status,
                         scheduled_start_at=c.scheduled_start_at,
                         started_at=c.started_at,
@@ -112,16 +112,34 @@ def create_classroom(
     else:
         raise HTTPException(status_code=500, detail="生成课堂码失败,请重试")
 
+    # 课号不能为空
+    course_no = (body.course_no or "").strip()
+    if not course_no:
+        raise HTTPException(status_code=422, detail="课号不能为空")
+
+    # 课号 → 课程名字一致性校验：一个课号只能对应一个课程名字
+    existing = (
+        db.query(Classroom)
+        .filter(Classroom.course_no == course_no)
+        .first()
+    )
+    if existing and (existing.course_name or "").strip() != body.course_name.strip():
+        raise HTTPException(
+            status_code=422,
+            detail=f"课号 {course_no} 已对应课程「{existing.course_name}」，"
+                   f"与当前输入的「{body.course_name}」不一致",
+        )
+
     classroom = Classroom(
         teacher_id=current_user.id,
-        course_no=body.course_no,
-        course_name=body.course_name,
+        course_no=course_no,
+        course_name=body.course_name.strip(),
         lesson_name=body.lesson_name,
         code=code,
         duration_minutes=body.duration_minutes or 45,
-        focus1_minutes=body.focus1_minutes or 50,
+        focus1_minutes=body.focus1_minutes or 45,
         break_minutes=body.break_minutes or 5,
-        focus2_minutes=body.focus2_minutes or 40,
+        focus2_minutes=body.focus2_minutes or 45,
         status="waiting",
         scheduled_start_at=body.scheduled_start_at,
     )
@@ -238,9 +256,9 @@ def get_classroom_phase(
             total_phase_seconds=phase_data["total_phase_seconds"],
             classroom_status=classroom.status,
             server_time=phase_data["server_time"],
-            focus1_minutes=classroom.focus1_minutes or 50,
+            focus1_minutes=classroom.focus1_minutes or 45,
             break_minutes=classroom.break_minutes or 5,
-            focus2_minutes=classroom.focus2_minutes or 40,
+            focus2_minutes=classroom.focus2_minutes or 45,
         ),
     )
 

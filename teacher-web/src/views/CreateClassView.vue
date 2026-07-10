@@ -18,11 +18,9 @@ const form = reactive({
   courseName: '',
   className: '',
   startTime: '',
-  mode: '默认模板',
-  focusOne: 50,
+  focusOne: 45,
   breakTime: 5,
-  focusTwo: 40,
-  template: 'default',
+  focusTwo: 45,
 })
 
 const range = (start, end) =>
@@ -169,9 +167,26 @@ const loadCourseHistory = async () => {
   }
 }
 
+const handleClassNameBlur = () => {
+  const value = (form.className || '').trim()
+  if (value && /^\d+$/.test(value)) {
+    form.className = `第 ${value} 次课`
+  }
+}
+
 const handleCreate = async () => {
   if (!isValidFutureStartTime()) {
     ElMessage.warning('开课时间不能早于当前时间')
+    return
+  }
+
+  if (!form.courseNo.trim()) {
+    ElMessage.warning('请输入课号')
+    return
+  }
+
+  if (!form.courseName.trim()) {
+    ElMessage.warning('请输入课程名称')
     return
   }
 
@@ -179,7 +194,10 @@ const handleCreate = async () => {
   try {
     const created = await createClass(form)
     generatedCode.value = created.code
+    ElMessage.success('课堂创建成功')
     router.push(`/class-detail/${created.id || created.code}`)
+  } catch (error) {
+    ElMessage.error(error.message || '创建失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -225,10 +243,10 @@ onMounted(loadCourseHistory)
           </el-col>
           <el-col :span="8">
             <el-form-item label="课次">
-              <el-input v-model="form.className" size="large" />
+              <el-input v-model="form.className" size="large" @blur="handleClassNameBlur" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="24">
             <el-form-item label="开课时间">
               <el-date-picker
                 v-model="form.startTime"
@@ -243,15 +261,6 @@ onMounted(loadCourseHistory)
                 size="large"
                 @change="handleStartTimeChange"
               />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="课堂模式">
-              <el-select v-model="form.mode" size="large">
-                <el-option label="默认模板" value="默认模板" />
-                <el-option label="讨论课模板" value="讨论课模板" />
-                <el-option label="实验课模板" value="实验课模板" />
-              </el-select>
             </el-form-item>
           </el-col>
         </el-row>

@@ -11,9 +11,9 @@ from datetime import datetime
 # 阶段元数据：phase key → (中文名, 该阶段秒数计算函数)
 PHASE_META = {
     "waiting":  ("未开始",   lambda _: 0),
-    "focus1":   ("第一专注段", lambda c: (c.focus1_minutes or 50) * 60),
+    "focus1":   ("第一专注段", lambda c: (c.focus1_minutes or 45) * 60),
     "break":    ("课间休息",  lambda c: (c.break_minutes or 5) * 60),
-    "focus2":   ("第二专注段", lambda c: (c.focus2_minutes or 40) * 60),
+    "focus2":   ("第二专注段", lambda c: (c.focus2_minutes or 45) * 60),
     "finished": ("已结束",   lambda _: 0),
 }
 
@@ -64,9 +64,9 @@ def calculate_phase(classroom):
     now = datetime.now()
     elapsed = (now - started_at).total_seconds()
 
-    f1 = (classroom.focus1_minutes or 50) * 60
+    f1 = (classroom.focus1_minutes or 45) * 60
     br = (classroom.break_minutes or 5) * 60
-    f2 = (classroom.focus2_minutes or 40) * 60
+    f2 = (classroom.focus2_minutes or 45) * 60
     total = f1 + br + f2
 
     # 时钟偏移容错（极少见）

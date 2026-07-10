@@ -29,10 +29,14 @@ request.interceptors.response.use(
   },
   (error) => {
     // 401 → token 过期或无效，清空登录态并跳转登录页
+    // 但登录接口自身的 401 是登录失败（密码错误等），不要拦截
     if (error.response?.status === 401) {
-      localStorage.removeItem('teacher_token')
-      window.location.href = '/login?expired=1'
-      return Promise.reject(new Error('登录已过期，请重新登录'))
+      const isLoginRequest = error.config?.url?.includes('/auth/login')
+      if (!isLoginRequest) {
+        localStorage.removeItem('teacher_token')
+        window.location.href = '/login?expired=1'
+        return Promise.reject(new Error('登录已过期，请重新登录'))
+      }
     }
 
     // 网络不通 / 超时（无响应）

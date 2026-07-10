@@ -24,14 +24,13 @@ class AppErrorHandler {
       return false;
     }
 
-    // 401 → 强制登出
+    // 401 → 先展示错误消息，再强制登出
     if (error.isUnauthorized) {
-      debugPrint('[AppErrorHandler] 401 — 强制跳转登录页');
+      debugPrint('[AppErrorHandler] 401 — ${error.message}');
+      _showSnackBar(context, error.message);
       final callback = onForceLogout;
       if (callback != null) {
         callback();
-      } else {
-        _showSnackBar(context, error.message);
       }
       return true;
     }
