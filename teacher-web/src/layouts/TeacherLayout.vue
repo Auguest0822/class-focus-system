@@ -7,7 +7,11 @@ import SidebarMenu from '@/components/SidebarMenu.vue'
     <SidebarMenu />
     <main class="layout-main">
       <section class="page-shell">
-        <router-view />
+        <router-view v-slot="{ Component, route: r }">
+          <keep-alive>
+            <component :is="Component" :key="r.name" />
+          </keep-alive>
+        </router-view>
       </section>
     </main>
   </div>

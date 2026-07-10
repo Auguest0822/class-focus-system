@@ -195,7 +195,7 @@ const handleCreate = async () => {
     const created = await createClass(form)
     generatedCode.value = created.code
     ElMessage.success('课堂创建成功')
-    router.push(`/class-detail/${created.id || created.code}`)
+    router.push(`/active-class/${created.id}`)
   } catch (error) {
     ElMessage.error(error.message || '创建失败，请稍后重试')
   } finally {

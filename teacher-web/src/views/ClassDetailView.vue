@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { getClassDetail, getClassroomPhase, getMembers, startClassroom, endClassroom } from '@/api/classApi'
@@ -167,7 +167,7 @@ const loadClassroomMembers = async (classroomId) => {
   students.value = await getMembers(classroomId)
 }
 
-onMounted(async () => {
+const loadDetail = async () => {
   const data = await getClassDetail(route.params.id)
   classInfo.value = data.classInfo
   courses.value = data.courses
@@ -175,14 +175,24 @@ onMounted(async () => {
   selectedLessonId.value = data.classInfo.id
   students.value = data.students
 
-  // 如果课堂已经在运行中（老师刷新了页面），自动恢复倒计时
   if (data.classInfo.status === 'running') {
     isRunning.value = true
     startTimers()
   }
 
-  // 启动学生列表自动刷新（无论课堂状态）
   startMembersPolling()
+}
+
+let _detailReady = false
+onMounted(async () => {
+  await loadDetail()
+  _detailReady = true
+})
+
+onActivated(() => {
+  stopAllTimers()
+  stopMembersPolling()
+  if (_detailReady) loadDetail()
 })
 
 const allLessons = computed(() => courses.value.flatMap((course) => course.lessons))

@@ -14,8 +14,8 @@ const summary = ref([])
 const studentStats = ref([])
 const appUsage = ref([])
 
-onMounted(async () => {
-  const data = await getClassReport(route.params.id)
+const loadReport = async (lessonId) => {
+  const data = await getClassReport(lessonId)
   classInfo.value = data.classInfo
   courses.value = data.courses
   expandedCourseNo.value = data.classInfo.courseNo
@@ -23,7 +23,9 @@ onMounted(async () => {
   summary.value = data.summary
   studentStats.value = data.studentStats
   appUsage.value = data.appUsage
-})
+}
+
+onMounted(() => loadReport(route.params.id))
 
 const allLessons = computed(() => courses.value.flatMap((course) => course.lessons))
 
@@ -48,7 +50,7 @@ const toggleCourse = (course) => {
 
 const selectLesson = (course, lesson) => {
   expandedCourseNo.value = course.courseNo
-  selectedLessonId.value = lesson.id
+  loadReport(lesson.id)
 }
 
 const formatLessonTime = (lesson) => {

@@ -1,9 +1,10 @@
 <script setup>
 const menuItems = [
-  { label: '课堂列表', path: '/dashboard' },
-  { label: '创建课堂', path: '/create-class' },
-  { label: '课程详情', path: '/class-detail' },
-  { label: '课堂报告', path: '/class-report' },
+  { label: '课堂列表', to: { name: 'dashboard' } },
+  { label: '当前课堂', to: { name: 'active-class' } },
+  { label: '创建课堂', to: { name: 'create-class' } },
+  { label: '课程详情', to: { name: 'class-detail' } },
+  { label: '课堂报告', to: { name: 'class-report' } },
 ]
 </script>
 
@@ -15,7 +16,7 @@ const menuItems = [
     </div>
 
     <nav class="menu">
-      <router-link v-for="item in menuItems" :key="item.path" :to="item.path" class="menu-item">
+      <router-link v-for="item in menuItems" :key="item.label" :to="item.to" class="menu-item">
         <span class="dot"></span>
         <span>{{ item.label }}</span>
       </router-link>
