@@ -64,6 +64,8 @@ const handleLogin = async () => {
   try {
     await login(loginForm)
     router.push('/dashboard')
+  } catch (error) {
+    ElMessage.error(error.message || '登录失败')
   } finally {
     loginLoading.value = false
   }
@@ -82,6 +84,8 @@ const handleRegister = async () => {
     })
     ElMessage.success('注册成功')
     router.push('/dashboard')
+  } catch (error) {
+    ElMessage.error(error.message || '注册失败')
   } finally {
     registerLoading.value = false
   }

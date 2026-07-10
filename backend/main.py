@@ -90,9 +90,9 @@ def on_startup():
     # create_all 不会修改已有表结构，所以用 information_schema 检查列是否存在
     with engine.connect() as conn:
         for col_name, col_default in [
-            ("focus1_minutes", 50),
+            ("focus1_minutes", 45),
             ("break_minutes", 5),
-            ("focus2_minutes", 40),
+            ("focus2_minutes", 45),
         ]:
             exists = conn.execute(
                 text(

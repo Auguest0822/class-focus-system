@@ -62,7 +62,7 @@ export const createClass = (form) => {
     statusText: '进行中',
     joinedCount: 36,
     ...form,
-    duration: `${form.focusOne || 50} + ${form.breakTime || 5} + ${form.focusTwo || 40}`,
+    duration: `${form.focusOne || 45} + ${form.breakTime || 5} + ${form.focusTwo || 45}`,
   }
 
   return wait(createdClass)

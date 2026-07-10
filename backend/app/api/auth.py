@@ -101,9 +101,16 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
             or_(User.student_no == account, User.teacher_no == account)
         ).first()
 
-    if not user or not verify_password(body.password, user.password_hash):
+    if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="学号或工号或密码错误"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="该学号/工号未注册，请检查后重试",
+        )
+
+    if not verify_password(body.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="密码错误，请重新输入",
         )
 
     token = create_access_token(

@@ -50,9 +50,9 @@ class Classroom(Base):
     lesson_name = Column(String(64), nullable=False)                                          # 课次名, 例如 第 1 次课
     code = Column(String(16), unique=True, nullable=False, index=True)                       # 学生加入用的唯一码
     duration_minutes = Column(Integer, nullable=False, default=45)                           # 课堂时长(分钟)
-    focus1_minutes = Column(Integer, nullable=False, default=50, comment="第一专注段时长(分钟)")
+    focus1_minutes = Column(Integer, nullable=False, default=45, comment="第一专注段时长(分钟)")
     break_minutes = Column(Integer, nullable=False, default=5, comment="课间休息时长(分钟)")
-    focus2_minutes = Column(Integer, nullable=False, default=40, comment="第二专注段时长(分钟)")
+    focus2_minutes = Column(Integer, nullable=False, default=45, comment="第二专注段时长(分钟)")
     status = Column(String(16), default="waiting", comment="waiting / running / finished")   # waiting:未开始,running:进行中,finished:已结束
     scheduled_start_at = Column(DateTime, nullable=True)                                      # 计划开课时间
     started_at = Column(DateTime, nullable=True)                                             # 老师点开始的时间
