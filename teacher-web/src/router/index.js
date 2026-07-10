@@ -22,6 +22,15 @@ const routes = [
     component: TeacherLayout,
     children: [
       {
+        path: 'active-class/:id?',
+        name: 'active-class',
+        component: () => import('@/views/ActiveClassView.vue'),
+        meta: {
+          title: '当前课堂',
+          subtitle: '实时查看课堂进行状态与学生加入情况。',
+        },
+      },
+      {
         path: 'dashboard',
         name: 'dashboard',
         component: DashboardView,
