@@ -19,6 +19,8 @@ from app.schemas import (
     ClassroomReportInfo,
     CourseGroupInfo,
     PhaseInfo,
+    StudentAppUsage,
+    StudentReportItem,
     StudentSummary,
 )
 from app.utils.codegen import generate_classroom_code
@@ -352,12 +354,32 @@ def get_classroom_report(
         .first()
     )
     if not report:
-        report = _generate_report(db, classroom)
-    return ApiResponse(code=0, message="ok", data=_serialize_report(report))
+        report, student_stats = _generate_report(db, classroom)
+    else:
+        student_stats = _build_student_stats(db, classroom.id)
+
+    result = _serialize_report(report)
+    result.student_stats = [
+        StudentReportItem(
+            student_name=s["student_name"],
+            student_no=s.get("student_no"),
+            total_seconds=s["total_seconds"],
+            apps=[
+                StudentAppUsage(
+                    app_name=a["app_name"],
+                    app_package=a["app_package"],
+                    usage_seconds=a["usage_seconds"],
+                )
+                for a in s["apps"]
+            ],
+        )
+        for s in student_stats
+    ]
+    return ApiResponse(code=0, message="ok", data=result)
 
 
 # ─────────────────────────── 报告生成逻辑 ───────────────────────────
-def _generate_report(db: Session, classroom: Classroom) -> ClassroomReport:
+def _generate_report(db: Session, classroom: Classroom) -> tuple[ClassroomReport, list[dict]]:
     """根据课堂内的 App 使用记录生成一份报告,并写入数据库。"""
 
     # 1) 成员总数
@@ -430,4 +452,52 @@ def _generate_report(db: Session, classroom: Classroom) -> ClassroomReport:
     db.add(report)
     db.commit()
     db.refresh(report)
-    return report
+    student_stats = _build_student_stats(db, classroom.id)
+    return report, student_stats
+
+
+def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
+    """按 student_id + app 聚合 app_usages 表，构建每位学生的分心明细。"""
+    detail_rows = (
+        db.query(
+            AppUsage.student_id,
+            User.name,
+            User.student_no,
+            AppUsage.app_name,
+            AppUsage.app_package,
+            func.sum(AppUsage.usage_seconds).label("sec"),
+        )
+        .join(User, AppUsage.student_id == User.id)
+        .filter(AppUsage.classroom_id == classroom_id)
+        .group_by(
+            AppUsage.student_id,
+            User.name,
+            User.student_no,
+            AppUsage.app_name,
+            AppUsage.app_package,
+        )
+        .order_by(AppUsage.student_id, func.sum(AppUsage.usage_seconds).desc())
+        .all()
+    )
+
+    student_map: dict[int, dict] = {}
+    for sid, name, sno, app_name, app_pkg, sec in detail_rows:
+        if sid not in student_map:
+            student_map[sid] = {
+                "student_name": name or sno or f"学生{sid}",
+                "student_no": sno,
+                "total_seconds": 0,
+                "apps": [],
+            }
+        student_map[sid]["total_seconds"] += int(sec or 0)
+        student_map[sid]["apps"].append({
+            "app_name": app_name or app_pkg or "未知应用",
+            "app_package": app_pkg or "",
+            "usage_seconds": int(sec or 0),
+        })
+
+    return sorted(
+        student_map.values(),
+        key=lambda x: x["total_seconds"],
+        reverse=True,
+    )
