@@ -12,7 +12,8 @@ const expandedCourseNo = ref('')
 const selectedLessonId = ref('')
 const summary = ref([])
 const studentStats = ref([])
-const appUsage = ref([])
+const appTypeOverview = ref([])
+const appRanking = ref([])
 
 const loadReport = async (lessonId) => {
   const data = await getClassReport(lessonId)
@@ -22,7 +23,8 @@ const loadReport = async (lessonId) => {
   selectedLessonId.value = data.classInfo.id
   summary.value = data.summary
   studentStats.value = data.studentStats
-  appUsage.value = data.appUsage
+  appTypeOverview.value = data.appTypeOverview
+  appRanking.value = data.appRanking
 }
 
 onMounted(() => loadReport(route.params.id))
@@ -183,14 +185,35 @@ const emptyReportText = computed(() => {
               <section class="panel app-panel">
                 <h2>App 类型使用概览</h2>
                 <div class="usage-list">
-                  <div v-for="item in appUsage" :key="item.name" class="usage-item">
-                    <span class="usage-name">{{ item.name }}</span>
+                  <div v-for="item in appTypeOverview" :key="item.category" class="usage-item">
+                    <span class="usage-name">{{ item.category }}</span>
                     <div class="usage-track">
                       <i :style="{ width: `${item.percent}%`, background: item.color }"></i>
                     </div>
                     <strong>{{ item.percent }}%</strong>
                   </div>
                 </div>
+                <el-empty v-if="!appTypeOverview.length" description="暂无应用使用数据" :image-size="60" />
+              </section>
+
+              <section class="panel app-ranking-panel">
+                <h2>App 使用排行</h2>
+                <p class="panel-subtitle">所有学生各应用总时长排行</p>
+                <el-table v-if="appRanking.length" :data="appRanking" size="small" class="ranking-table" stripe>
+                  <el-table-column type="index" label="#" width="50" />
+                  <el-table-column prop="name" label="应用" min-width="140" />
+                  <el-table-column label="使用时长" width="150">
+                    <template #default="{ row }">
+                      {{ Math.floor(row.totalSeconds / 60) }} 分 {{ row.totalSeconds % 60 }} 秒
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="使用人数" width="100">
+                    <template #default="{ row }">
+                      {{ row.studentCount }} 人
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <el-empty v-else description="暂无应用使用数据" :image-size="60" />
               </section>
             </div>
           </template>
@@ -335,6 +358,16 @@ const emptyReportText = computed(() => {
   gap: 22px;
 }
 
+@media (min-width: 1200px) {
+  .report-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .app-ranking-panel {
+    grid-column: 1 / -1;
+  }
+}
+
 .panel-title {
   min-height: 74px;
   display: flex;
@@ -404,6 +437,22 @@ h2 {
 .empty-report p {
   margin: 10px 0 0;
   color: #5f7894;
+}
+
+.app-ranking-panel {
+  padding: 26px 24px;
+}
+
+.app-ranking-panel .panel-subtitle {
+  margin: 6px 0 16px;
+  color: #5f7894;
+  font-size: 14px;
+}
+
+.ranking-table {
+  --el-table-header-bg-color: #fbfdff;
+  --el-table-header-text-color: #12355b;
+  --el-table-text-color: #47617f;
 }
 
 .panel-body {

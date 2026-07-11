@@ -5,7 +5,9 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import io.flutter.embedding.engine.FlutterEngine
@@ -169,12 +171,12 @@ object AppUsagePlugin {
                 val usageSeconds = (session.totalMs / 1000).toInt()
                 if (usageSeconds < 1) return@mapNotNull null
 
-                val appName = try {
-                    val appInfo = pm.getApplicationInfo(pkg, 0)
-                    pm.getApplicationLabel(appInfo).toString()
-                } catch (_: PackageManager.NameNotFoundException) {
-                    pkg
-                }
+                val appResult = runCatching {
+                    val info = pm.getApplicationInfo(pkg, 0)
+                    info to pm.getApplicationLabel(info).toString()
+                }.getOrNull()
+                val appInfo = appResult?.first
+                val appName = appResult?.second ?: pkg
 
                 mapOf(
                     "packageName" to pkg,
@@ -182,6 +184,7 @@ object AppUsagePlugin {
                     "usageSeconds" to usageSeconds,
                     "startTime" to session.firstForeground?.let { isoFormat.format(Date(it)) },
                     "endTime" to session.lastBackground?.let { isoFormat.format(Date(it)) },
+                    "category" to getAppCategory(pkg, appInfo),
                 )
             }
             .sortedByDescending { it["usageSeconds"] as? Int ?: 0 }
@@ -192,5 +195,55 @@ object AppUsagePlugin {
                 pkg == "android" ||
                 pkg.startsWith("com.google.android.") ||
                 pkg == "com.android.systemui"
+    }
+
+    // ── 系统 App 分类 ─────────────────────────────────────────────
+    /**
+     * 通过 [ApplicationInfo.category] 获取 Android 系统为应用标记的分类。
+     *
+     * 需要 API 26+（Android 8.0），低版本或未分类时返回 -1（CATEGORY_UNDEFINED）。
+     * 分类由应用安装来源（如 Google Play、厂商商店）自动填写。
+     */
+    private fun getAppCategoryInt(pkg: String): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return -1
+        return try {
+            val appInfo = appContext.packageManager.getApplicationInfo(pkg, 0)
+            appInfo.category
+        } catch (_: PackageManager.NameNotFoundException) {
+            -1
+        }
+    }
+
+    /**
+     * 将 [ApplicationInfo] 的 category 整数映射为中文分类名。
+     * -1 / 未知 → null（由后端硬编码规则兜底）。
+     */
+    private fun categoryIntToName(category: Int): String? {
+        return when (category) {
+            ApplicationInfo.CATEGORY_GAME -> "游戏"
+            ApplicationInfo.CATEGORY_AUDIO -> "音乐"
+            ApplicationInfo.CATEGORY_VIDEO -> "视频"
+            ApplicationInfo.CATEGORY_IMAGE -> "图片"
+            ApplicationInfo.CATEGORY_SOCIAL -> "社交"
+            ApplicationInfo.CATEGORY_NEWS -> "新闻"
+            ApplicationInfo.CATEGORY_MAPS -> "地图"
+            ApplicationInfo.CATEGORY_PRODUCTIVITY -> "效率工具"
+            ApplicationInfo.CATEGORY_ACCESSIBILITY -> "辅助功能"
+            else -> null // 其他 / undefined → 交后端硬编码规则处理
+        }
+    }
+
+    /**
+     * 获取一个 App 的 Android 系统分类名，兜底返回 null。
+     * 调用方应缓存 [ApplicationInfo] 以避免重复 IPC。
+     */
+    private fun getAppCategory(pkg: String, appInfo: ApplicationInfo? = null): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
+        val info = appInfo ?: try {
+            appContext.packageManager.getApplicationInfo(pkg, 0)
+        } catch (_: PackageManager.NameNotFoundException) {
+            return null
+        }
+        return categoryIntToName(info.category)
     }
 }

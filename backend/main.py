@@ -109,6 +109,24 @@ def on_startup():
                         f"INT NOT NULL DEFAULT {col_default}"
                     )
                 )
+
+        # app_usages 表新增 category 列（Android 系统应用分类）
+        cat_exists = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'app_usages' "
+                "AND COLUMN_NAME = 'category'"
+            ),
+            {"db": settings.MYSQL_DATABASE},
+        ).scalar()
+        if not cat_exists:
+            conn.execute(
+                text(
+                    "ALTER TABLE app_usages ADD COLUMN category "
+                    "VARCHAR(32) NULL COMMENT 'Android 系统分类(API 26+),如 社交/游戏/视频'"
+                )
+            )
+
         conn.commit()
 
 

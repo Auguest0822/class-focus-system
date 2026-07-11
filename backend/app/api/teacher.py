@@ -13,6 +13,8 @@ from app.core.deps import get_current_user, require_role
 from app.models import AppUsage, Classroom, ClassroomMember, ClassroomReport, User
 from app.schemas import (
     ApiResponse,
+    AppRankingItem,
+    AppTypeUsage,
     ClassroomCreate,
     ClassroomInCourse,
     ClassroomInfo,
@@ -27,6 +29,119 @@ from app.utils.codegen import generate_classroom_code
 from app.utils.phase import calculate_phase
 
 router = APIRouter(prefix="/api/teacher", tags=["老师"])
+
+
+# ─────────────────────────── App 分类 ───────────────────────────
+# 基于 Android 包名前缀匹配，归类到常见分心类型
+APP_CATEGORY_MAP: dict[str, str] = {
+    # 社交
+    "com.tencent.mm": "社交",
+    "com.tencent.mobileqq": "社交",
+    "com.tencent.tim": "社交",
+    "com.sina.weibo": "社交",
+    "com.zhiliaoapp.musically": "社交",
+    "com.instagram.android": "社交",
+    "com.twitter.android": "社交",
+    "com.facebook.katana": "社交",
+    "com.facebook.orca": "社交",
+    "com.snapchat.android": "社交",
+    "com.discord": "社交",
+    "com.skype.raider": "社交",
+    "com.whatsapp": "社交",
+    "com.tencent.wework": "社交",
+    "com.alibaba.android.rimet": "社交",  # 钉钉
+    # 游戏
+    "com.tencent.tmgp": "游戏",
+    "com.tencent.ig": "游戏",
+    "com.netease": "游戏",
+    "com.miHoYo": "游戏",
+    "com.mihoyo": "游戏",
+    "com.supercell": "游戏",
+    "com.mojang": "游戏",
+    "com.riotgames": "游戏",
+    "com.activision": "游戏",
+    "com.ea.": "游戏",
+    "com.ubisoft": "游戏",
+    "com.kiloo": "游戏",
+    "com.king.": "游戏",
+    # 视频
+    "com.ss.android.ugc.aweme": "视频",
+    "com.smile.gifmaker": "视频",
+    "com.youku": "视频",
+    "com.qiyi": "视频",
+    "com.bilibili": "视频",
+    "tv.danmaku.bili": "视频",
+    "com.tencent.qqlive": "视频",
+    "com.sohu.sohuvideo": "视频",
+    "com.example.souqidai": "视频",
+    "com.hetao": "视频",
+    "com.douyu": "视频",
+    "com.huya": "视频",
+    # 音乐
+    "com.kugou": "音乐",
+    "com.netease.cloudmusic": "音乐",
+    "com.tencent.qqmusic": "音乐",
+    "com.spotify": "音乐",
+    # 购物
+    "com.taobao": "购物",
+    "com.jingdong": "购物",
+    "com.xunmeng.pinduoduo": "购物",
+    "com.meituan": "购物",
+    "com.suning": "购物",
+    "com.vipshop": "购物",
+    "com.alibaba.wireless": "购物",  # 闲鱼
+    # 浏览器
+    "com.android.chrome": "浏览器",
+    "com.UCMobile": "浏览器",
+    "com.ucmobile": "浏览器",
+    "com.qihoo.browser": "浏览器",
+    "com.tencent.mtt": "浏览器",
+    "com.microsoft.emmx": "浏览器",  # Edge
+    "org.mozilla.firefox": "浏览器",
+    "com.opera": "浏览器",
+    # 阅读/小说
+    "com.zhangyue": "阅读",
+    "com.qidian": "阅读",
+    "com.jjwxc": "阅读",
+    "com.dragonread": "阅读",
+    "com.chaozh.iReader": "阅读",
+    # 系统工具 (非分心，但可能被误报)
+    "com.android.settings": "系统工具",
+    "com.android.systemui": "系统工具",
+    "com.android.launcher": "系统工具",
+    "com.android.deskclock": "系统工具",
+    "com.google.android": "系统工具",
+}
+
+CATEGORY_COLORS: dict[str, str] = {
+    "社交": "#3b82f6",
+    "游戏": "#ef4444",
+    "视频": "#f97316",
+    "音乐": "#8b5cf6",
+    "购物": "#ec4899",
+    "浏览器": "#06b6d4",
+    "阅读": "#84cc16",
+    "系统工具": "#6b7280",
+    "其他": "#94a3b8",
+}
+
+
+def _classify_app(package_name: str, app_name: str = "") -> str:
+    """根据包名返回 App 分类。先尝试精确匹配，再前缀匹配，兜底为 '其他'。"""
+    pkg = (package_name or "").lower()
+    # 精确匹配
+    if pkg in APP_CATEGORY_MAP:
+        return APP_CATEGORY_MAP[pkg]
+    # 前缀匹配: 从长到短尝试
+    keys = sorted(APP_CATEGORY_MAP.keys(), key=len, reverse=True)
+    for prefix in keys:
+        if pkg.startswith(prefix.lower()):
+            return APP_CATEGORY_MAP[prefix]
+    return "其他"
+
+
+def _category_color(category: str) -> str:
+    return CATEGORY_COLORS.get(category, CATEGORY_COLORS["其他"])
 
 
 # ─────────────────────────── 工具函数 ───────────────────────────
@@ -368,6 +483,7 @@ def get_classroom_report(
                 StudentAppUsage(
                     app_name=a["app_name"],
                     app_package=a["app_package"],
+                    category=a.get("category"),
                     usage_seconds=a["usage_seconds"],
                 )
                 for a in s["apps"]
@@ -375,6 +491,28 @@ def get_classroom_report(
         )
         for s in student_stats
     ]
+
+    # 动态计算 App 类型概览、排行、主要分心类型
+    type_overview = _compute_app_type_overview(db, classroom.id)
+    result.app_type_overview = [
+        AppTypeUsage(
+            category=t["category"],
+            total_seconds=t["total_seconds"],
+            percent=t["percent"],
+        )
+        for t in type_overview
+    ]
+    result.app_ranking = [
+        AppRankingItem(
+            app_name=r["app_name"],
+            app_package=r["app_package"],
+            total_seconds=r["total_seconds"],
+            student_count=r["student_count"],
+        )
+        for r in _compute_app_ranking(db, classroom.id)
+    ]
+    result.main_distract_type = _compute_main_distract_type(type_overview)
+
     return ApiResponse(code=0, message="ok", data=result)
 
 
@@ -425,9 +563,17 @@ def _generate_report(db: Session, classroom: Classroom) -> tuple[ClassroomReport
         for name, pkg, sec in app_rows
     ]
 
-    # 4) 简单的专注度评分:人均使用越久分数越低
-    baseline = max(avg, 1)
-    focus_score = max(0.0, 100.0 - (avg / baseline) * 50) if avg else 100.0
+    # 4) 专注度评分: 基于课堂总时长计算
+    # 总分心时间占课堂总时长的比例越低，专注度越高
+    total_class_seconds = (
+        (classroom.focus1_minutes or 45)
+        + (classroom.break_minutes or 5)
+        + (classroom.focus2_minutes or 45)
+    ) * 60
+    if total_class_seconds > 0 and avg > 0:
+        focus_score = max(0.0, 100.0 - (avg / total_class_seconds) * 100)
+    else:
+        focus_score = 100.0
     focus_score = round(focus_score, 2)
 
     # 5) 简单的规则化建议
@@ -465,6 +611,7 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
             User.student_no,
             AppUsage.app_name,
             AppUsage.app_package,
+            AppUsage.category,
             func.sum(AppUsage.usage_seconds).label("sec"),
         )
         .join(User, AppUsage.student_id == User.id)
@@ -475,13 +622,14 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
             User.student_no,
             AppUsage.app_name,
             AppUsage.app_package,
+            AppUsage.category,
         )
         .order_by(AppUsage.student_id, func.sum(AppUsage.usage_seconds).desc())
         .all()
     )
 
     student_map: dict[int, dict] = {}
-    for sid, name, sno, app_name, app_pkg, sec in detail_rows:
+    for sid, name, sno, app_name, app_pkg, category, sec in detail_rows:
         if sid not in student_map:
             student_map[sid] = {
                 "student_name": name or sno or f"学生{sid}",
@@ -493,6 +641,7 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
         student_map[sid]["apps"].append({
             "app_name": app_name or app_pkg or "未知应用",
             "app_package": app_pkg or "",
+            "category": category or None,
             "usage_seconds": int(sec or 0),
         })
 
@@ -501,3 +650,75 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
         key=lambda x: x["total_seconds"],
         reverse=True,
     )
+
+
+def _compute_app_type_overview(db: Session, classroom_id: int) -> list[dict]:
+    """按 App 分类聚合所有学生的使用记录，返回各分类的时长与占比。
+
+    优先使用 Android 系统上传的 category 字段（API 26+），
+    如果为空则回退到后端硬编码的包名规则匹配。
+    """
+    rows = (
+        db.query(
+            AppUsage.app_name,
+            AppUsage.app_package,
+            AppUsage.category,
+            func.sum(AppUsage.usage_seconds).label("sec"),
+        )
+        .filter(AppUsage.classroom_id == classroom_id)
+        .group_by(AppUsage.app_package, AppUsage.app_name, AppUsage.category)
+        .all()
+    )
+
+    category_agg: dict[str, int] = {}
+    for name, pkg, stored_cat, sec in rows:
+        # 优先用 Android 系统分类，空则兜底硬编码规则
+        category = stored_cat or _classify_app(pkg or "", name or "")
+        category_agg[category] = category_agg.get(category, 0) + int(sec or 0)
+
+    total = sum(category_agg.values()) or 1
+    result = []
+    for cat in sorted(category_agg.keys()):
+        seconds = category_agg[cat]
+        result.append({
+            "category": cat,
+            "total_seconds": seconds,
+            "percent": round(seconds / total * 100, 1),
+        })
+    # 按占比降序排列
+    result.sort(key=lambda x: x["total_seconds"], reverse=True)
+    return result
+
+
+def _compute_app_ranking(db: Session, classroom_id: int) -> list[dict]:
+    """跨所有学生聚合各 App 总使用时长排行 + 使用人数。"""
+    rows = (
+        db.query(
+            AppUsage.app_name,
+            AppUsage.app_package,
+            func.sum(AppUsage.usage_seconds).label("sec"),
+            func.count(func.distinct(AppUsage.student_id)).label("stu_count"),
+        )
+        .filter(AppUsage.classroom_id == classroom_id)
+        .group_by(AppUsage.app_package, AppUsage.app_name)
+        .order_by(func.sum(AppUsage.usage_seconds).desc())
+        .all()
+    )
+
+    return [
+        {
+            "app_name": (name or pkg or "未知应用"),
+            "app_package": pkg or "",
+            "total_seconds": int(sec or 0),
+            "student_count": int(stu_count or 0),
+        }
+        for name, pkg, sec, stu_count in rows
+    ]
+
+
+def _compute_main_distract_type(app_type_overview: list[dict]) -> str | None:
+    """从类型概览中找到占比最高的分心类型（排除 '系统工具'）。"""
+    distraction_types = [t for t in app_type_overview if t["category"] != "系统工具"]
+    if not distraction_types:
+        return None
+    return max(distraction_types, key=lambda x: x["total_seconds"])["category"]

@@ -5,6 +5,7 @@ class AppUsageRecord {
     this.appName,
     this.startTime,
     this.endTime,
+    this.category,
   });
 
   final String appPackage;
@@ -12,6 +13,7 @@ class AppUsageRecord {
   final int usageSeconds;
   final String? startTime;
   final String? endTime;
+  final String? category;
 
   Map<String, dynamic> toJson() {
     return {
@@ -20,6 +22,7 @@ class AppUsageRecord {
       'usage_seconds': usageSeconds,
       'start_time': startTime,
       'end_time': endTime,
+      if (category != null && category!.isNotEmpty) 'category': category,
     };
   }
 }
