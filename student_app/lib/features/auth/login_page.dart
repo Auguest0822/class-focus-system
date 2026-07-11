@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
 import '../../core/error_handler.dart';
+import '../../core/token_storage.dart';
 import '../../core/validators.dart';
 import 'auth_service.dart';
 import 'student.dart';
@@ -90,6 +92,47 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  Future<void> _showServerUrlDialog() async {
+    final currentUrl = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
+    final controller = TextEditingController(text: currentUrl);
+    final url = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('服务器地址'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'http://10.162.151.59:8000/api',
+            labelText: 'API 地址',
+          ),
+          keyboardType: TextInputType.url,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+
+    if (url == null || url.isEmpty || url == currentUrl) return;
+    await TokenStorage().saveServerUrl(url);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('服务器地址已保存，重启 App 后生效'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -172,6 +215,20 @@ class _LoginPageState extends State<LoginPage> {
               TextButton(
                 onPressed: widget.onShowRegister,
                 child: const Text('还没有账号？注册'),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _showServerUrlDialog,
+                child: const Text(
+                  '连接不上？试试更换服务器地址',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.mutedText,
+                    fontSize: 13,
+                    decoration: TextDecoration.underline,
+                    decorationColor: AppColors.mutedText,
+                  ),
+                ),
               ),
             ],
           ),

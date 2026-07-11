@@ -23,8 +23,8 @@ class StudentApp extends StatefulWidget {
 
 class _StudentAppState extends State<StudentApp> {
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
-  final _authService = AuthService();
-  final _classroomService = ClassroomService();
+  late final AuthService _authService;
+  late final ClassroomService _classroomService;
 
   Student? _student;
   bool _showRegister = false;
@@ -36,17 +36,21 @@ class _StudentAppState extends State<StudentApp> {
   @override
   void initState() {
     super.initState();
-    // 注册全局 401 回调：强制跳转登录页
     AppErrorHandler.onForceLogout = _handleForceLogout;
-    _initServerUrl();
-    _tryRestoreSession();
+    _bootstrap();
   }
 
-  Future<void> _initServerUrl() async {
+  Future<void> _bootstrap() async {
+    // 1. 先加载存储的服务器地址
     final stored = await TokenStorage().getServerUrl();
     if (stored != null && stored.isNotEmpty) {
       ApiClient.runtimeBaseUrl = stored;
     }
+    // 2. 然后再创建服务（ApiClient 此时已拿到正确地址）
+    _authService = AuthService();
+    _classroomService = ClassroomService();
+    // 3. 尝试恢复登录
+    _tryRestoreSession();
   }
 
   Future<void> _tryRestoreSession() async {
