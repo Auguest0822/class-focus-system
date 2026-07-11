@@ -54,15 +54,35 @@ const selectLesson = (course, lesson) => {
 }
 
 const formatLessonTime = (lesson) => {
-  if (!lesson.startTime || !lesson.endTime) return '未设置时间'
-  const startDate = lesson.startTime.slice(0, 10)
-  const endDate = lesson.endTime.slice(0, 10)
-  const endTime = lesson.endTime.slice(11)
+  const startTime = lesson.startTime
+  if (!startTime) return '未设置时间'
 
-  if (startDate === endDate) {
-    return `${lesson.startTime}-${endTime}`
+  if (lesson.endTime) {
+    const startDate = startTime.slice(0, 10)
+    const endDate = lesson.endTime.slice(0, 10)
+    const endTime = lesson.endTime.slice(11)
+    if (startDate === endDate) return `${startTime}-${endTime}`
+    return `${startTime}-${lesson.endTime}`
   }
-  return `${lesson.startTime}-${lesson.endTime}`
+
+  // 课堂未结束 → 用 计划开始时间 + 课堂时长 计算预计结束时间
+  const totalMin = lesson.duration_minutes
+    ?? lesson.focus1_minutes + lesson.break_minutes + lesson.focus2_minutes
+    ?? 0
+  if (totalMin <= 0) return startTime
+
+  const m = startTime.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/)
+  if (!m) return startTime
+
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5])
+  d.setMinutes(d.getMinutes() + totalMin)
+  const pad = (n) => String(n).padStart(2, '0')
+  const endStr = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+
+  const startDate = startTime.slice(0, 10)
+  const endDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  if (startDate === endDate) return `${startTime}-${endStr}`
+  return `${startTime}-${endDate} ${endStr}`
 }
 
 const reportStatusText = (lesson) => {

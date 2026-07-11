@@ -74,8 +74,10 @@ export const getMembers = async (classroomId) => {
   return wait([...students])
 }
 
-export const getClassDetail = (id = 'PY2025') => {
-  const currentClass = classes.find((item) => item.id === id || item.code === id) || classes[0]
+export const getClassDetail = (id) => {
+  const currentClass = id
+    ? (classes.find((item) => item.id === id || item.code === id) || classes[classes.length - 1])
+    : classes[classes.length - 1] || classes[0]
   return wait({
     classInfo: currentClass,
     courses: getCourseGroups(),

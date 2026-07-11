@@ -105,7 +105,9 @@ const buildDashboardStats = (classes) => {
 }
 
 const currentOrFirstClass = (classes, id) =>
-  classes.find((item) => String(item.id) === String(id) || item.code === id) || classes[0] || {}
+  id
+    ? (classes.find((item) => String(item.id) === String(id) || item.code === id) || classes[classes.length - 1] || {})
+    : (classes[classes.length - 1] || classes[0] || {})
 
 const normalizeReportSummary = (report = {}) => [
   { label: '参与学生', value: String(report.total_students ?? '--') },
