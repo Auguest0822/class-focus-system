@@ -4,21 +4,33 @@ import 'api_exception.dart';
 import 'token_storage.dart';
 
 class ApiClient {
+  /// 运行时服务器地址，null 时使用编译期默认值。
+  static String? runtimeBaseUrl;
+
+  /// 编译期默认地址，可通过 flutter run --dart-define=API_BASE_URL=... 覆盖。
+  static const String defaultBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.162.151.59:8000/api',
+  );
+
   ApiClient({Dio? dio, TokenStorage? tokenStorage})
     : _tokenStorage = tokenStorage ?? TokenStorage(),
       _dio =
           dio ??
           Dio(
             BaseOptions(
-              baseUrl: const String.fromEnvironment(
-                'API_BASE_URL',
-                defaultValue: 'http://10.190.185.59:8000/api',
-              ),
+              baseUrl: _resolveBaseUrl(),
               connectTimeout: const Duration(seconds: 15),
               receiveTimeout: const Duration(seconds: 15),
               contentType: Headers.jsonContentType,
             ),
           ) {
+
+  static String _resolveBaseUrl() {
+    final url = runtimeBaseUrl;
+    if (url != null && url.isNotEmpty) return url;
+    return defaultBaseUrl;
+  }
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {

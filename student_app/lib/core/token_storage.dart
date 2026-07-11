@@ -7,6 +7,7 @@ class TokenStorage {
   static const _tokenKey = 'student_access_token';
   static const _studentKey = 'student_profile';
   static const _loginHistoryKey = 'student_login_history';
+  static const _serverUrlKey = 'server_url';
 
   final FlutterSecureStorage _storage;
 
@@ -32,6 +33,14 @@ class TokenStorage {
 
   Future<String?> getLoginHistoryJson() {
     return _storage.read(key: _loginHistoryKey);
+  }
+
+  Future<String?> getServerUrl() {
+    return _storage.read(key: _serverUrlKey);
+  }
+
+  Future<void> saveServerUrl(String url) {
+    return _storage.write(key: _serverUrlKey, value: url);
   }
 
   Future<void> clearToken() {

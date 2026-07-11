@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'core/api_client.dart';
 import 'core/app_colors.dart';
 import 'core/error_handler.dart';
+import 'core/token_storage.dart';
 import 'features/auth/auth_service.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
@@ -36,7 +38,15 @@ class _StudentAppState extends State<StudentApp> {
     super.initState();
     // 注册全局 401 回调：强制跳转登录页
     AppErrorHandler.onForceLogout = _handleForceLogout;
+    _initServerUrl();
     _tryRestoreSession();
+  }
+
+  Future<void> _initServerUrl() async {
+    final stored = await const TokenStorage().getServerUrl();
+    if (stored != null && stored.isNotEmpty) {
+      ApiClient.runtimeBaseUrl = stored;
+    }
   }
 
   Future<void> _tryRestoreSession() async {
