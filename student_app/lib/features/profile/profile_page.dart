@@ -16,7 +16,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final _storage = const TokenStorage();
+  final _storage = TokenStorage();
   String _serverUrl = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
 
   @override

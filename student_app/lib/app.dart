@@ -43,7 +43,7 @@ class _StudentAppState extends State<StudentApp> {
   }
 
   Future<void> _initServerUrl() async {
-    final stored = await const TokenStorage().getServerUrl();
+    final stored = await TokenStorage().getServerUrl();
     if (stored != null && stored.isNotEmpty) {
       ApiClient.runtimeBaseUrl = stored;
     }

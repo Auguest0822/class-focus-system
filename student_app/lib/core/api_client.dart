@@ -13,6 +13,12 @@ class ApiClient {
     defaultValue: 'http://10.162.151.59:8000/api',
   );
 
+  static String _resolveBaseUrl() {
+    final url = runtimeBaseUrl;
+    if (url != null && url.isNotEmpty) return url;
+    return defaultBaseUrl;
+  }
+
   ApiClient({Dio? dio, TokenStorage? tokenStorage})
     : _tokenStorage = tokenStorage ?? TokenStorage(),
       _dio =
@@ -25,12 +31,6 @@ class ApiClient {
               contentType: Headers.jsonContentType,
             ),
           ) {
-
-  static String _resolveBaseUrl() {
-    final url = runtimeBaseUrl;
-    if (url != null && url.isNotEmpty) return url;
-    return defaultBaseUrl;
-  }
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
