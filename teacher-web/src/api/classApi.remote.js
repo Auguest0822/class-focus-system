@@ -1,3 +1,4 @@
+import axios from 'axios'
 import request from './request'
 
 const statusTextMap = {
@@ -212,6 +213,31 @@ export const endClassroom = async (classroomId) => {
 
 export const getClassroomPhase = async (classroomId) => {
   return await request.get(`/teacher/classrooms/${classroomId}/phase`)
+}
+
+export const exportReport = async (classroomId, fileName = '课堂报告') => {
+  const token = localStorage.getItem('teacher_token')
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const resp = await axios.get(
+    `${baseURL}/teacher/classrooms/${classroomId}/report/export`,
+    {
+      responseType: 'blob',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  )
+  // 从 Content-Disposition 解析文件名，取不到就用传入的
+  const disposition = resp.headers['content-disposition'] || ''
+  const match = disposition.match(/filename\*=UTF-8''(.+)/)
+  const downloadName = match ? decodeURIComponent(match[1]) : `${fileName}.xlsx`
+
+  const url = window.URL.createObjectURL(new Blob([resp.data]))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = downloadName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
 }
 
 const CATEGORY_COLORS = {

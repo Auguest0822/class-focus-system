@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getClassReport } from '@/api/classApi'
+import { getClassReport, exportReport } from '@/api/classApi'
 import ReportSummaryCard from '@/components/ReportSummaryCard.vue'
 import TopBar from '@/components/TopBar.vue'
 
@@ -111,6 +111,21 @@ const tagType = (status) => {
   return 'info'
 }
 
+const exporting = ref(false)
+
+const handleExport = async () => {
+  if (!selectedLessonId.value || exporting.value) return
+  exporting.value = true
+  try {
+    const name = selectedLesson.value?.className || '课堂报告'
+    await exportReport(selectedLessonId.value, name)
+  } catch (e) {
+    // 导出失败静默处理
+  } finally {
+    exporting.value = false
+  }
+}
+
 const emptyReportText = computed(() => {
   if (selectedLesson.value?.status === 'running') return '课堂进行中，报告将在结束后生成'
   return '课堂未开始，暂无报告'
@@ -120,7 +135,7 @@ const emptyReportText = computed(() => {
 <template>
   <TopBar>
     <template #actions>
-      <el-button size="large" :disabled="!selectedLessonEnded">导出报告</el-button>
+      <el-button size="large" :disabled="!selectedLessonEnded" :loading="exporting" @click="handleExport">导出报告</el-button>
     </template>
   </TopBar>
 
