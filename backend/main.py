@@ -127,6 +127,24 @@ def on_startup():
                 )
             )
 
+        # users 表新增 nickname / avatar_url 列
+        for col, col_def in [
+            ("nickname", "VARCHAR(64) NULL COMMENT '自定义昵称'"),
+            ("avatar_url", "VARCHAR(512) NULL COMMENT '头像 URL'"),
+        ]:
+            has = conn.execute(
+                text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA = :db AND TABLE_NAME = 'users' "
+                    "AND COLUMN_NAME = :col"
+                ),
+                {"db": settings.MYSQL_DATABASE, "col": col},
+            ).scalar()
+            if not has:
+                conn.execute(
+                    text(f"ALTER TABLE users ADD COLUMN {col} {col_def}")
+                )
+
         conn.commit()
 
 

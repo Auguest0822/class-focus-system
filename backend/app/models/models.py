@@ -35,6 +35,8 @@ class User(Base):
     student_no = Column(String(32), unique=True, nullable=True, index=True)                  # 学号(学生登录凭据)
     teacher_no = Column(String(32), unique=True, nullable=True, index=True)                  # 工号(老师登录凭据)
     name = Column(String(64), nullable=False)                                                # 显示名 / 真实姓名
+    nickname = Column(String(64), nullable=True, comment="自定义昵称")
+    avatar_url = Column(String(512), nullable=True, comment="头像 URL")
     created_at = Column(DateTime, default=datetime.now)                                      # 注册时间
 
 

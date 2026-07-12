@@ -41,6 +41,8 @@ class TokenResponse(BaseModel):
     user_id: int = Field(description="用户 ID")
     role: str = Field(description="角色:teacher / student")
     name: str = Field(description="真实姓名")
+    nickname: Optional[str] = Field(default=None, description="自定义昵称")
+    avatar_url: Optional[str] = Field(default=None, description="头像标识(object_name)")
     student_no: Optional[str] = Field(default=None, description="学号(学生)")
     teacher_no: Optional[str] = Field(default=None, description="工号(老师)")
 
@@ -53,9 +55,17 @@ class UserInfo(BaseModel):
     id: int = Field(description="用户 ID")
     role: str = Field(description="角色")
     name: str = Field(description="真实姓名")
+    nickname: Optional[str] = Field(default=None, description="自定义昵称")
+    avatar_url: Optional[str] = Field(default=None, description="头像 URL")
     student_no: Optional[str] = Field(default=None, description="学号")
     teacher_no: Optional[str] = Field(default=None, description="工号")
     created_at: Optional[datetime] = Field(default=None, description="注册时间")
+
+
+class UpdateProfileRequest(BaseModel):
+    """修改个人资料请求体（昵称可选更新）。"""
+
+    nickname: Optional[str] = Field(default=None, description="新昵称(为空则不修改)")
 
 
 # ─────────────────────────── 课堂相关 ───────────────────────────

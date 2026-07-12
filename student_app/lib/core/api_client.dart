@@ -62,6 +62,25 @@ class ApiClient {
     return _unwrap(response.data);
   }
 
+  Future<dynamic> put(String path, {Map<String, dynamic>? data}) async {
+    final response = await _send(() => _dio.put(path, data: data));
+    return _unwrap(response.data);
+  }
+
+  /// 上传文件（multipart/form-data），返回解析后的业务数据。
+  /// [filePath] 本地文件路径，[fieldName] 服务端接收字段名。
+  Future<dynamic> uploadFile(
+    String path, {
+    required String filePath,
+    String fieldName = 'file',
+  }) async {
+    final formData = FormData.fromMap({
+      fieldName: await MultipartFile.fromFile(filePath),
+    });
+    final response = await _send(() => _dio.post(path, data: formData));
+    return _unwrap(response.data);
+  }
+
   Future<Response<dynamic>> _send(
     Future<Response<dynamic>> Function() request,
   ) async {

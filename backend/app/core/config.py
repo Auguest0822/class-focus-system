@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     # token 有效期(分钟)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
+    # ─── MinIO ──────────────────────────────────────────────
+    MINIO_ENDPOINT: str = "127.0.0.1:9000"       # 后端 SDK 连接 MinIO 用
+    MINIO_PUBLIC_ENDPOINT: str = "127.0.0.1:9000" # 返回给前端的 URL 用（手机需设 PC 的局域网 IP）
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "classroom-avatars"
+    MINIO_SECURE: bool = False
+
     # ─── 应用服务 ────────────────────────────────────────────
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
