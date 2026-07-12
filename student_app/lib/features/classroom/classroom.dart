@@ -13,6 +13,8 @@ class Classroom {
     required this.focus1Minutes,
     required this.breakMinutes,
     required this.focus2Minutes,
+    this.teacherName,
+    this.teacherAvatarUrl,
   });
 
   final int id;
@@ -26,6 +28,8 @@ class Classroom {
   final int focus1Minutes;
   final int breakMinutes;
   final int focus2Minutes;
+  final String? teacherName;
+  final String? teacherAvatarUrl;
 
   String get statusText {
     switch (status) {
@@ -52,6 +56,8 @@ class Classroom {
       focus1Minutes: json['focus1_minutes'] as int? ?? 50,
       breakMinutes: json['break_minutes'] as int? ?? 5,
       focus2Minutes: json['focus2_minutes'] as int? ?? 40,
+      teacherName: json['teacher_name']?.toString(),
+      teacherAvatarUrl: json['teacher_avatar_url']?.toString(),
     );
   }
 }

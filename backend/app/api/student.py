@@ -74,8 +74,17 @@ def my_classrooms(
         .order_by(Classroom.created_at.desc())
         .all()
     )
+    result = []
+    for c in items:
+        info = ClassroomInfo.model_validate(c)
+        # 附加老师信息
+        teacher = db.query(User).filter(User.id == c.teacher_id).first()
+        if teacher:
+            info.teacher_name = teacher.nickname or teacher.name
+            info.teacher_avatar_url = teacher.avatar_url
+        result.append(info)
     return ApiResponse(
-        code=0, message="ok", data=[ClassroomInfo.model_validate(c) for c in items]
+        code=0, message="ok", data=result
     )
 
 

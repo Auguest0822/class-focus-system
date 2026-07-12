@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api_client.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_colors.dart';
+import '../auth/student.dart';
 import 'app_usage.dart';
 import 'classroom.dart';
 import 'classroom_service.dart';
@@ -135,6 +137,68 @@ class _ClassroomSummary extends StatelessWidget {
           _DetailRow(label: 'Course', value: classroom.courseNo),
           _DetailRow(label: 'Time', value: classroom.startTime),
           _DetailRow(label: 'Duration', value: classroom.durationText),
+          if (classroom.teacherName != null && classroom.teacherName!.isNotEmpty)
+            _TeacherDetailRow(
+              teacherName: classroom.teacherName!,
+              teacherAvatarUrl: classroom.teacherAvatarUrl,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeacherDetailRow extends StatelessWidget {
+  const _TeacherDetailRow({
+    required this.teacherName,
+    this.teacherAvatarUrl,
+  });
+
+  final String teacherName;
+  final String? teacherAvatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final apiBase = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
+    final avatarUrl = Student.resolveAvatarUrl(teacherAvatarUrl, apiBase);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(
+            width: 76,
+            child: Text(
+              'Teacher',
+              style: TextStyle(color: AppColors.bodyText),
+            ),
+          ),
+          CircleAvatar(
+            radius: 12,
+            backgroundColor: AppColors.softBlue,
+            backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+            child: avatarUrl == null
+                ? Text(
+                    teacherName.isNotEmpty ? teacherName[0] : '师',
+                    style: const TextStyle(
+                      color: AppColors.navy,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              teacherName,
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
         ],
       ),
     );

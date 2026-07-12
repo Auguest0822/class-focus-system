@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
 import '../auth/student.dart';
 import 'active_classroom_page.dart';
@@ -33,6 +34,7 @@ class ClassroomPage extends StatelessWidget {
         : ActiveClassroomPage(
             classroom: classroom,
             classroomService: classroomService,
+            student: student,
           );
 
     Navigator.push(
@@ -120,6 +122,9 @@ class _ClassroomHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final apiBase = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
+    final avatarUrl = Student.resolveAvatarUrl(student.avatarUrl, apiBase);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -156,13 +161,16 @@ class _ClassroomHeader extends StatelessWidget {
         CircleAvatar(
           radius: 24,
           backgroundColor: AppColors.softBlue,
-          child: Text(
-            student.avatarText,
-            style: const TextStyle(
-              color: AppColors.navy,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+          child: avatarUrl == null
+              ? Text(
+                  student.avatarText,
+                  style: const TextStyle(
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.w900,
+                  ),
+                )
+              : null,
         ),
       ],
     );
@@ -228,6 +236,11 @@ class _ClassroomCard extends StatelessWidget {
           _InfoRow(label: '课堂码', value: classroom.code),
           _InfoRow(label: '时间', value: classroom.startTime),
           _InfoRow(label: '时长', value: classroom.durationText),
+          if (classroom.teacherName != null && classroom.teacherName!.isNotEmpty)
+            _TeacherRow(
+              teacherName: classroom.teacherName!,
+              teacherAvatarUrl: classroom.teacherAvatarUrl,
+            ),
           const SizedBox(height: 14),
           OutlinedButton(
             onPressed: onTap,
@@ -303,6 +316,62 @@ class _InfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeacherRow extends StatelessWidget {
+  const _TeacherRow({
+    required this.teacherName,
+    this.teacherAvatarUrl,
+  });
+
+  final String teacherName;
+  final String? teacherAvatarUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final apiBase = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
+    final avatarUrl = Student.resolveAvatarUrl(teacherAvatarUrl, apiBase);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 62,
+            child: Text(
+              '老师',
+              style: TextStyle(color: AppColors.bodyText),
+            ),
+          ),
+          CircleAvatar(
+            radius: 12,
+            backgroundColor: AppColors.softBlue,
+            backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+            child: avatarUrl == null
+                ? Text(
+                    teacherName.isNotEmpty ? teacherName[0] : '师',
+                    style: const TextStyle(
+                      color: AppColors.navy,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              teacherName,
               style: const TextStyle(
                 color: AppColors.navy,
                 fontWeight: FontWeight.w800,

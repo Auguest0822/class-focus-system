@@ -103,6 +103,8 @@ class ClassroomInfo(BaseModel):
 
     id: int = Field(description="课堂 ID")
     teacher_id: int = Field(description="创建该课堂的老师 ID")
+    teacher_name: Optional[str] = Field(default=None, description="老师姓名")
+    teacher_avatar_url: Optional[str] = Field(default=None, description="老师头像(object_name)")
     course_no: str = Field(description="课号")
     course_name: str = Field(description="课程名称")
     lesson_name: str = Field(description="课次名")
