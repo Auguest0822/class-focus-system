@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/api_client.dart';
 import '../../core/api_exception.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_usage_tracker.dart';
 import '../../core/error_handler.dart';
+import '../auth/student.dart';
 import 'app_usage.dart';
 import 'classroom.dart';
 import 'classroom_service.dart';
@@ -22,10 +24,12 @@ class ActiveClassroomPage extends StatefulWidget {
     super.key,
     required this.classroom,
     required this.classroomService,
+    required this.student,
   });
 
   final Classroom classroom;
   final ClassroomService classroomService;
+  final Student student;
 
   @override
   State<ActiveClassroomPage> createState() => _ActiveClassroomPageState();
@@ -307,6 +311,7 @@ class _ActiveClassroomPageState extends State<ActiveClassroomPage>
             tooltip: '刷新',
             onPressed: _isSyncing ? null : _handleRefresh,
           ),
+          _buildStudentAvatar(),
         ],
       ),
       body: _isLoading
@@ -444,6 +449,8 @@ class _ActiveClassroomPageState extends State<ActiveClassroomPage>
                       _infoRow('课次', classroom.lessonName),
                       _infoRow('时长', classroom.durationText),
                       _infoRow('状态', _phaseInfo?.phaseName ?? '未开始'),
+                      if (classroom.teacherName != null && classroom.teacherName!.isNotEmpty)
+                        _teacherInfoRow(classroom.teacherName!, classroom.teacherAvatarUrl),
                     ],
                   ),
                 ),
@@ -503,6 +510,74 @@ class _ActiveClassroomPageState extends State<ActiveClassroomPage>
               const Icon(Icons.check_circle, color: AppColors.success, size: 18),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStudentAvatar() {
+    final student = widget.student;
+    final apiBase = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
+    final avatarUrl = Student.resolveAvatarUrl(student.avatarUrl, apiBase);
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: CircleAvatar(
+        radius: 16,
+        backgroundColor: Colors.white24,
+        backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+        child: avatarUrl == null
+            ? Text(
+                student.avatarText,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                ),
+              )
+            : null,
+      ),
+    );
+  }
+
+  Widget _teacherInfoRow(String name, String? avatarUrlRaw) {
+    final apiBase = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
+    final avatarUrl = Student.resolveAvatarUrl(avatarUrlRaw, apiBase);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('老师', style: TextStyle(color: AppColors.mutedText)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: AppColors.softBlue,
+                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                child: avatarUrl == null
+                    ? Text(
+                        name.isNotEmpty ? name[0] : '师',
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.navy,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

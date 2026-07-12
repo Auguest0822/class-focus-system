@@ -141,3 +141,8 @@ export const getClassroomPhase = () => wait({
   focus2_minutes: 40,
 })
 
+export const exportReport = () => {
+  // mock: 导出功能无需模拟，直接提示
+  return Promise.resolve()
+}
+

@@ -41,6 +41,8 @@ class TokenResponse(BaseModel):
     user_id: int = Field(description="用户 ID")
     role: str = Field(description="角色:teacher / student")
     name: str = Field(description="真实姓名")
+    nickname: Optional[str] = Field(default=None, description="自定义昵称")
+    avatar_url: Optional[str] = Field(default=None, description="头像标识(object_name)")
     student_no: Optional[str] = Field(default=None, description="学号(学生)")
     teacher_no: Optional[str] = Field(default=None, description="工号(老师)")
 
@@ -53,9 +55,17 @@ class UserInfo(BaseModel):
     id: int = Field(description="用户 ID")
     role: str = Field(description="角色")
     name: str = Field(description="真实姓名")
+    nickname: Optional[str] = Field(default=None, description="自定义昵称")
+    avatar_url: Optional[str] = Field(default=None, description="头像 URL")
     student_no: Optional[str] = Field(default=None, description="学号")
     teacher_no: Optional[str] = Field(default=None, description="工号")
     created_at: Optional[datetime] = Field(default=None, description="注册时间")
+
+
+class UpdateProfileRequest(BaseModel):
+    """修改个人资料请求体（昵称可选更新）。"""
+
+    nickname: Optional[str] = Field(default=None, description="新昵称(为空则不修改)")
 
 
 # ─────────────────────────── 课堂相关 ───────────────────────────
@@ -93,6 +103,8 @@ class ClassroomInfo(BaseModel):
 
     id: int = Field(description="课堂 ID")
     teacher_id: int = Field(description="创建该课堂的老师 ID")
+    teacher_name: Optional[str] = Field(default=None, description="老师姓名")
+    teacher_avatar_url: Optional[str] = Field(default=None, description="老师头像(object_name)")
     course_no: str = Field(description="课号")
     course_name: str = Field(description="课程名称")
     lesson_name: str = Field(description="课次名")
@@ -181,6 +193,9 @@ class StudentSummary(BaseModel):
     student_id: int = Field(description="学生 ID")
     student_name: str = Field(description="学生姓名")
     student_no: Optional[str] = Field(default=None, description="学号")
+    nickname: Optional[str] = Field(default=None, description="自定义昵称")
+    avatar_url: Optional[str] = Field(default=None, description="头像标识(object_name)")
+    joined_at: Optional[datetime] = Field(default=None, description="加入课堂时间")
     total_seconds: int = Field(default=0, description="该学生在课堂内使用手机的总秒数")
     top_apps: List[dict] = Field(
         default_factory=list,
@@ -203,6 +218,8 @@ class StudentReportItem(BaseModel):
 
     student_name: str = Field(description="学生姓名")
     student_no: Optional[str] = Field(default=None, description="学号")
+    nickname: Optional[str] = Field(default=None, description="自定义昵称")
+    avatar_url: Optional[str] = Field(default=None, description="头像标识(object_name)")
     total_seconds: int = Field(description="该学生在本次课堂中分心总秒数")
     apps: list[StudentAppUsage] = Field(
         default_factory=list, description="各 App 使用明细（按秒数降序）"

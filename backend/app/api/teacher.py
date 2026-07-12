@@ -1,10 +1,16 @@
 """
-老师侧接口:课堂管理、成员查询、课堂报告生成。
+老师侧接口:课堂管理、成员查询、课堂报告生成与导出。
 """
 import json
 from datetime import datetime, timedelta
+from io import BytesIO
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -294,6 +300,8 @@ def start_classroom(
     classroom.started_at = datetime.now()
     db.commit()
     db.refresh(classroom)
+    from app.utils.redis_client import cache_delete
+    cache_delete(f"members:{classroom_id}")
     return ApiResponse(
         code=0, message="已开始", data=ClassroomInfo.model_validate(classroom)
     )
@@ -325,6 +333,8 @@ def end_classroom(
     classroom.ended_at = datetime.now()
     db.commit()
     db.refresh(classroom)
+    from app.utils.redis_client import cache_delete
+    cache_delete(f"members:{classroom_id}")
     return ApiResponse(
         code=0, message="已结束", data=ClassroomInfo.model_validate(classroom)
     )
@@ -402,6 +412,18 @@ def classroom_members(
     if not classroom:
         raise HTTPException(status_code=404, detail="课堂不存在")
 
+    # ── Redis 缓存：直接返回序列化的 list[dict] ──
+    cache_key = f"members:{classroom_id}"
+    from app.utils.redis_client import cache_get, cache_set
+
+    cached = cache_get(cache_key)
+    if cached is not None:
+        # 命中的是 list[dict]，需要还原为 list[StudentSummary]
+        return ApiResponse(
+            code=0, message="ok",
+            data=[StudentSummary(**item) for item in cached],
+        )
+
     # 查出所有学生成员及其用户资料
     members = (
         db.query(ClassroomMember, User)
@@ -410,17 +432,28 @@ def classroom_members(
         .all()
     )
 
-    # 对每个学生聚合出总秒数和高频应用
-    results: list[StudentSummary] = []
-    for _, user in members:
-        records = (
+    # 一次性批量捞出所有学生的 AppUsage，避免 N+1
+    student_ids = [user.id for _, user in members]
+    all_records: list[AppUsage] = []
+    if student_ids:
+        all_records = (
             db.query(AppUsage)
             .filter(
                 AppUsage.classroom_id == classroom_id,
-                AppUsage.student_id == user.id,
+                AppUsage.student_id.in_(student_ids),
             )
             .all()
         )
+
+    # 按 student_id 预分组，纯内存操作
+    records_by_student: dict[int, list[AppUsage]] = {}
+    for r in all_records:
+        records_by_student.setdefault(r.student_id, []).append(r)
+
+    # 对每个学生聚合出总秒数和高频应用
+    results: list[StudentSummary] = []
+    for member, user in members:
+        records = records_by_student.get(user.id, [])
         total = sum(r.usage_seconds for r in records)
         app_agg: dict[str, int] = {}
         for r in records:
@@ -433,10 +466,16 @@ def classroom_members(
                 student_id=user.id,
                 student_name=user.name,
                 student_no=user.student_no,
+                nickname=user.nickname,
+                avatar_url=user.avatar_url,
+                joined_at=member.joined_at,
                 total_seconds=total,
                 top_apps=[{"app": a, "seconds": s} for a, s in top_apps],
             )
         )
+
+    # 写入 Redis 缓存，TTL 3 秒（短于前端 5 秒轮询，保证下次轮询能看到新数据）
+    cache_set(cache_key, [r.model_dump() for r in results])
     return ApiResponse(code=0, message="ok", data=results)
 
 
@@ -478,6 +517,8 @@ def get_classroom_report(
         StudentReportItem(
             student_name=s["student_name"],
             student_no=s.get("student_no"),
+            nickname=s.get("nickname"),
+            avatar_url=s.get("avatar_url"),
             total_seconds=s["total_seconds"],
             apps=[
                 StudentAppUsage(
@@ -609,6 +650,8 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
             AppUsage.student_id,
             User.name,
             User.student_no,
+            User.nickname,
+            User.avatar_url,
             AppUsage.app_name,
             AppUsage.app_package,
             AppUsage.category,
@@ -620,6 +663,8 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
             AppUsage.student_id,
             User.name,
             User.student_no,
+            User.nickname,
+            User.avatar_url,
             AppUsage.app_name,
             AppUsage.app_package,
             AppUsage.category,
@@ -629,11 +674,13 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
     )
 
     student_map: dict[int, dict] = {}
-    for sid, name, sno, app_name, app_pkg, category, sec in detail_rows:
+    for sid, name, sno, nickname, avatar_url, app_name, app_pkg, category, sec in detail_rows:
         if sid not in student_map:
             student_map[sid] = {
                 "student_name": name or sno or f"学生{sid}",
                 "student_no": sno,
+                "nickname": nickname,
+                "avatar_url": avatar_url,
                 "total_seconds": 0,
                 "apps": [],
             }
@@ -722,3 +769,259 @@ def _compute_main_distract_type(app_type_overview: list[dict]) -> str | None:
     if not distraction_types:
         return None
     return max(distraction_types, key=lambda x: x["total_seconds"])["category"]
+
+
+# ─────────────────────────── Excel 导出 ───────────────────────────
+# 样式常量
+_HEADER_FONT = Font(name="微软雅黑", bold=True, size=11, color="FFFFFF")
+_HEADER_FILL = PatternFill(start_color="2563EB", end_color="2563EB", fill_type="solid")
+_HEADER_ALIGN = Alignment(horizontal="center", vertical="center", wrap_text=True)
+_CELL_ALIGN = Alignment(vertical="center", wrap_text=True)
+_CELL_ALIGN_CENTER = Alignment(horizontal="center", vertical="center")
+_THIN_BORDER = Border(
+    left=Side(style="thin", color="D5E5F2"),
+    right=Side(style="thin", color="D5E5F2"),
+    top=Side(style="thin", color="D5E5F2"),
+    bottom=Side(style="thin", color="D5E5F2"),
+)
+_TITLE_FONT = Font(name="微软雅黑", bold=True, size=18, color="12355B")
+_SUBTITLE_FONT = Font(name="微软雅黑", bold=True, size=12, color="12355B")
+_LABEL_FONT = Font(name="微软雅黑", bold=True, size=10, color="516987")
+_VALUE_FONT = Font(name="微软雅黑", size=10, color="12355B")
+
+
+def _style_header_row(ws, row: int, col_count: int):
+    """给表头行应用统一样式。"""
+    for c in range(1, col_count + 1):
+        cell = ws.cell(row=row, column=c)
+        cell.font = _HEADER_FONT
+        cell.fill = _HEADER_FILL
+        cell.alignment = _HEADER_ALIGN
+        cell.border = _THIN_BORDER
+
+
+def _style_data_cell(ws, row: int, col: int, center: bool = False):
+    """给数据单元格应用统一样式。"""
+    cell = ws.cell(row=row, column=col)
+    cell.font = _VALUE_FONT
+    cell.alignment = _CELL_ALIGN_CENTER if center else _CELL_ALIGN
+    cell.border = _THIN_BORDER
+    return cell
+
+
+def _auto_width(ws, min_width: int = 10, max_width: int = 42):
+    """根据内容自动调整列宽。"""
+    for col_cells in ws.columns:
+        col_letter = get_column_letter(col_cells[0].column)
+        lengths = []
+        for cell in col_cells:
+            if cell.value:
+                # 中文字符按 ~2 个字符宽度计算
+                text = str(cell.value)
+                length = sum(2 if ord(ch) > 127 else 1 for ch in text)
+                lengths.append(length)
+        if lengths:
+            best = max(lengths) + 4  # padding
+            ws.column_dimensions[col_letter].width = max(min_width, min(best, max_width))
+
+
+@router.get(
+    "/classrooms/{classroom_id}/report/export",
+    summary="导出课堂报告为 Excel",
+    description="生成该课堂的专注报告并导出为 .xlsx 文件，包含概览、学生专注统计、应用排行、类型概览四个工作表。",
+)
+def export_classroom_report(
+    classroom_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("teacher")),
+):
+    # ── 权限校验 ──
+    classroom = (
+        db.query(Classroom)
+        .filter(
+            Classroom.id == classroom_id,
+            Classroom.teacher_id == current_user.id,
+        )
+        .first()
+    )
+    if not classroom:
+        raise HTTPException(status_code=404, detail="课堂不存在")
+
+    # ── 获取或生成报告数据 ──
+    report = (
+        db.query(ClassroomReport)
+        .filter(ClassroomReport.classroom_id == classroom_id)
+        .first()
+    )
+    if not report:
+        report, student_stats = _generate_report(db, classroom)
+    else:
+        student_stats = _build_student_stats(db, classroom.id)
+
+    type_overview = _compute_app_type_overview(db, classroom.id)
+    app_ranking = _compute_app_ranking(db, classroom.id)
+    main_distract = _compute_main_distract_type(type_overview)
+
+    # ── 构建课堂时间文本 ──
+    start_str = (
+        classroom.scheduled_start_at.strftime("%Y-%m-%d %H:%M")
+        if classroom.scheduled_start_at
+        else (classroom.started_at.strftime("%Y-%m-%d %H:%M") if classroom.started_at else "未记录")
+    )
+    end_str = (
+        classroom.ended_at.strftime("%Y-%m-%d %H:%M")
+        if classroom.ended_at
+        else "进行中"
+    )
+    total_minutes = (
+        (classroom.focus1_minutes or 45)
+        + (classroom.break_minutes or 5)
+        + (classroom.focus2_minutes or 45)
+    )
+
+    # ── 创建 Excel 工作簿 ──
+    wb = Workbook()
+
+    # ======================== Sheet 1: 课堂概览 ========================
+    ws1 = wb.active
+    ws1.title = "课堂概览"
+
+    # 标题
+    ws1.merge_cells("A1:D1")
+    title_cell = ws1.cell(row=1, column=1, value="课堂专注报告")
+    title_cell.font = _TITLE_FONT
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # 基本信息区
+    info_start = 3
+    info_data = [
+        ("课程名称", classroom.course_name or "—"),
+        ("课次名称", classroom.lesson_name or classroom.course_name or "—"),
+        ("课堂码", classroom.code or "—"),
+        ("开始时间", start_str),
+        ("结束时间", end_str),
+        ("课堂时长", f"{total_minutes} 分钟"),
+    ]
+    for i, (label, value) in enumerate(info_data):
+        r = info_start + i
+        ws1.cell(row=r, column=1, value=label).font = _LABEL_FONT
+        ws1.cell(row=r, column=1).alignment = _CELL_ALIGN
+        ws1.cell(row=r, column=2, value=value).font = _VALUE_FONT
+        ws1.cell(row=r, column=2).alignment = _CELL_ALIGN
+
+    # 汇总指标
+    summary_start = info_start + len(info_data) + 1
+    ws1.merge_cells(f"A{summary_start}:D{summary_start}")
+    ws1.cell(row=summary_start, column=1, value="📊 专注汇总").font = _SUBTITLE_FONT
+
+    summary_data = [
+        ("参与学生", f"{report.total_students} 人"),
+        ("专注度评分", f"{report.focus_score}%"),
+        ("平均分心时长", f"{round(report.average_usage_seconds / 60)} 分钟"),
+        ("主要分心类型", main_distract or "无"),
+    ]
+    for i, (label, value) in enumerate(summary_data):
+        r = summary_start + 1 + i
+        ws1.cell(row=r, column=1, value=label).font = _LABEL_FONT
+        ws1.cell(row=r, column=1).alignment = _CELL_ALIGN
+        ws1.cell(row=r, column=2, value=value).font = _VALUE_FONT
+        ws1.cell(row=r, column=2).alignment = _CELL_ALIGN
+
+    # 建议
+    sug_start = summary_start + len(summary_data) + 2
+    ws1.merge_cells(f"A{sug_start}:D{sug_start}")
+    ws1.cell(row=sug_start, column=1, value="💡 系统建议").font = _SUBTITLE_FONT
+    if report.suggestions:
+        suggestions = report.suggestions.split("; ")
+        for i, sug in enumerate(suggestions):
+            r = sug_start + 1 + i
+            ws1.merge_cells(f"A{r}:D{r}")
+            ws1.cell(row=r, column=1, value=f"• {sug}").font = _VALUE_FONT
+            ws1.cell(row=r, column=1).alignment = _CELL_ALIGN
+
+    # 列宽
+    ws1.column_dimensions["A"].width = 18
+    ws1.column_dimensions["B"].width = 28
+    ws1.column_dimensions["C"].width = 16
+    ws1.column_dimensions["D"].width = 16
+
+    # ======================== Sheet 2: 学生专注统计 ========================
+    ws2 = wb.create_sheet("学生专注统计")
+    headers2 = ["序号", "学生姓名", "学号", "分心总时长(分钟)"]
+    for c, h in enumerate(headers2, 1):
+        ws2.cell(row=1, column=c, value=h)
+    _style_header_row(ws2, 1, len(headers2))
+
+    for i, s in enumerate(student_stats):
+        r = i + 2
+        display_name = s.get("nickname") or s["student_name"]
+        row_data = [
+            i + 1,
+            display_name,
+            s.get("student_no") or "—",
+            round(s["total_seconds"] / 60),
+        ]
+        for c, val in enumerate(row_data, 1):
+            cell = _style_data_cell(ws2, r, c, center=c in (1, 3, 4))
+            cell.value = val
+
+    _auto_width(ws2)
+
+    # ======================== Sheet 3: 应用排行 ========================
+    ws3 = wb.create_sheet("应用排行")
+    headers3 = ["排名", "应用名称", "使用总时长(分钟)", "使用人数"]
+    for c, h in enumerate(headers3, 1):
+        ws3.cell(row=1, column=c, value=h)
+    _style_header_row(ws3, 1, len(headers3))
+
+    for i, app in enumerate(app_ranking):
+        r = i + 2
+        row_data = [
+            i + 1,
+            app["app_name"],
+            round(app["total_seconds"] / 60),
+            f'{app["student_count"]} 人',
+        ]
+        for c, val in enumerate(row_data, 1):
+            cell = _style_data_cell(ws3, r, c, center=c in (1, 3, 4))
+            cell.value = val
+
+    _auto_width(ws3)
+
+    # ======================== Sheet 4: 类型概览 ========================
+    ws4 = wb.create_sheet("类型概览")
+    headers4 = ["应用分类", "使用总时长(分钟)", "占比"]
+    for c, h in enumerate(headers4, 1):
+        ws4.cell(row=1, column=c, value=h)
+    _style_header_row(ws4, 1, len(headers4))
+
+    for i, t in enumerate(type_overview):
+        r = i + 2
+        row_data = [
+            t["category"],
+            round(t["total_seconds"] / 60),
+            f'{t["percent"]}%',
+        ]
+        for c, val in enumerate(row_data, 1):
+            cell = _style_data_cell(ws4, r, c, center=c in (2, 3))
+            cell.value = val
+
+    _auto_width(ws4)
+
+    # ── 写入内存并返回 ──
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    course_no = (classroom.course_no or "").replace("/", "-").replace("\\", "-")
+    course_name = (classroom.course_name or "").replace("/", "-").replace("\\", "-")
+    lesson_name = (classroom.lesson_name or "").replace("/", "-").replace("\\", "-")
+    safe_name_parts = [p for p in [course_no, course_name, lesson_name] if p]
+    safe_name = "_".join(safe_name_parts) if safe_name_parts else "课堂报告"
+    filename = f"{safe_name}_专注报告.xlsx"
+
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )

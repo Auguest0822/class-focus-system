@@ -1,3 +1,4 @@
+import axios from 'axios'
 import request from './request'
 
 const statusTextMap = {
@@ -60,14 +61,27 @@ const normalizeClassroom = (item = {}) => {
   }
 }
 
+const toJoinTimeText = (value) => {
+  if (!value) return ''
+  const text = value.toString()
+  // ISO 格式 "2026-07-12T08:30:00" → "08:30"
+  const m = text.match(/T(\d{2}):(\d{2})/)
+  if (m) return `${m[1]}:${m[2]}`
+  // "YYYY-MM-DD HH:MM" 格式
+  const m2 = text.match(/(\d{2}):(\d{2})$/)
+  if (m2) return `${m2[1]}:${m2[2]}`
+  return ''
+}
+
 const normalizeStudent = (item = {}) => ({
   ...item,
   id: item.student_no ?? item.id,
   name: item.name ?? item.student_name ?? '',
-  joinTime: toDateTimeText(item.joined_at ?? item.joinTime),
+  nickname: item.nickname ?? '',
+  joinTime: toJoinTimeText(item.joined_at ?? item.joinTime),
+  avatarUrl: item.avatar_url || item.avatarUrl || null,
   status: item.has_uploaded_usage ? '数据已上传' : item.status || '已加入',
   statusType: item.has_uploaded_usage ? 'success' : item.statusType || 'primary',
-  focusRate: item.focus_rate ? `${item.focus_rate}%` : item.focusRate || '--',
 })
 
 const groupByCourse = (classes) => {
@@ -201,6 +215,31 @@ export const getClassroomPhase = async (classroomId) => {
   return await request.get(`/teacher/classrooms/${classroomId}/phase`)
 }
 
+export const exportReport = async (classroomId, fileName = '课堂报告') => {
+  const token = localStorage.getItem('teacher_token')
+  const baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+  const resp = await axios.get(
+    `${baseURL}/teacher/classrooms/${classroomId}/report/export`,
+    {
+      responseType: 'blob',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  )
+  // 从 Content-Disposition 解析文件名，取不到就用传入的
+  const disposition = resp.headers['content-disposition'] || ''
+  const match = disposition.match(/filename\*=UTF-8''(.+)/)
+  const downloadName = match ? decodeURIComponent(match[1]) : `${fileName}.xlsx`
+
+  const url = window.URL.createObjectURL(new Blob([resp.data]))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = downloadName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
 const CATEGORY_COLORS = {
   社交: '#3b82f6',
   游戏: '#ef4444',
@@ -223,6 +262,8 @@ export const getClassReport = async (id) => {
   const studentStats = (report.student_stats || []).map((s) => ({
     name: s.student_name || s.student_no || '未知',
     studentNo: s.student_no || '',
+    nickname: s.nickname || '',
+    avatarUrl: s.avatar_url || null,
     totalSeconds: s.total_seconds,
     distractMinutes: Math.round(s.total_seconds / 60),
     apps: (s.apps || []).map((a) => ({

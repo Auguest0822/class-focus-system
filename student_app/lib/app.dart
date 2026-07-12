@@ -203,6 +203,8 @@ class _StudentAppState extends State<StudentApp> {
               onJoinClassroom: _handleJoinClassroom,
               onLogout: _handleLogout,
               onRefreshClassrooms: () => _loadClassrooms(),
+              authService: _authService,
+              onProfileUpdated: (updated) => setState(() => _student = updated),
             ),
     );
   }
@@ -219,6 +221,8 @@ class _MainShell extends StatelessWidget {
     required this.onJoinClassroom,
     required this.onLogout,
     required this.onRefreshClassrooms,
+    required this.authService,
+    required this.onProfileUpdated,
   });
 
   final Student student;
@@ -230,6 +234,8 @@ class _MainShell extends StatelessWidget {
   final Future<void> Function(String code) onJoinClassroom;
   final VoidCallback onLogout;
   final VoidCallback onRefreshClassrooms;
+  final AuthService authService;
+  final ValueChanged<Student> onProfileUpdated;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +248,12 @@ class _MainShell extends StatelessWidget {
         onRefresh: onRefreshClassrooms,
       ),
       JoinClassroomPage(onJoinClassroom: onJoinClassroom),
-      ProfilePage(student: student, onLogout: onLogout),
+      ProfilePage(
+        student: student,
+        onLogout: onLogout,
+        authService: authService,
+        onProfileUpdated: onProfileUpdated,
+      ),
     ];
 
     return Scaffold(

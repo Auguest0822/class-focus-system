@@ -112,6 +112,27 @@ class AuthService {
     return null;
   }
 
+  /// 更新个人资料（昵称）。
+  Future<Student> updateProfile({String? nickname}) async {
+    final data = await _apiClient.put(
+      '/auth/profile',
+      data: {'nickname': nickname},
+    ) as Map<String, dynamic>;
+    await _apiClient.tokenStorage.saveStudentJson(jsonEncode(data));
+    return Student.fromJson(data);
+  }
+
+  /// 上传头像图片，返回更新后的 Student。
+  Future<Student> uploadAvatar(String filePath) async {
+    final data = await _apiClient.uploadFile(
+      '/auth/avatar',
+      filePath: filePath,
+      fieldName: 'file',
+    ) as Map<String, dynamic>;
+    await _apiClient.tokenStorage.saveStudentJson(jsonEncode(data));
+    return Student.fromJson(data);
+  }
+
   Future<void> logout() {
     return _apiClient.tokenStorage.clearToken();
   }

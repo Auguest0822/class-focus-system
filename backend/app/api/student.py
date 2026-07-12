@@ -51,6 +51,9 @@ def join_classroom(
     if not existing:
         db.add(ClassroomMember(classroom_id=classroom.id, student_id=current_user.id))
         db.commit()
+        # 清除成员缓存，让老师端下次轮询拿到最新列表
+        from app.utils.redis_client import cache_delete
+        cache_delete(f"members:{classroom.id}")
 
     return ApiResponse(
         code=0, message="加入成功", data=ClassroomInfo.model_validate(classroom)
@@ -74,8 +77,17 @@ def my_classrooms(
         .order_by(Classroom.created_at.desc())
         .all()
     )
+    result = []
+    for c in items:
+        info = ClassroomInfo.model_validate(c)
+        # 附加老师信息
+        teacher = db.query(User).filter(User.id == c.teacher_id).first()
+        if teacher:
+            info.teacher_name = teacher.nickname or teacher.name
+            info.teacher_avatar_url = teacher.avatar_url
+        result.append(info)
     return ApiResponse(
-        code=0, message="ok", data=[ClassroomInfo.model_validate(c) for c in items]
+        code=0, message="ok", data=result
     )
 
 
@@ -131,6 +143,10 @@ def upload_usage_records(
         ClassroomReport.classroom_id == body.classroom_id
     ).delete()
     db.commit()
+
+    # 清除成员缓存（使用数据变了，下次轮询需重新聚合）
+    from app.utils.redis_client import cache_delete
+    cache_delete(f"members:{body.classroom_id}")
 
     return ApiResponse(code=0, message="上传成功", data=inserted)
 

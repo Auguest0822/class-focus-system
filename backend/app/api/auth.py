@@ -1,7 +1,8 @@
 """
-认证相关接口:注册、登录、获取当前用户信息。
+认证相关接口:注册、登录、获取当前用户信息、修改个人资料、上传头像。
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -9,7 +10,15 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import User
-from app.schemas import ApiResponse, LoginRequest, RegisterRequest, TokenResponse, UserInfo
+from app.schemas import (
+    ApiResponse,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse,
+    UpdateProfileRequest,
+    UserInfo,
+)
+from app.utils.minio_client import delete_avatar, get_avatar_stream, upload_avatar
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 
@@ -71,6 +80,8 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
             user_id=user.id,
             role=user.role,
             name=user.name,
+            nickname=user.nickname,
+            avatar_url=user.avatar_url,
             student_no=student_no,
             teacher_no=teacher_no,
         ),
@@ -127,6 +138,8 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
             user_id=user.id,
             role=user.role,
             name=user.name,
+            nickname=user.nickname,
+            avatar_url=user.avatar_url,
             student_no=user.student_no,
             teacher_no=user.teacher_no,
         ),
@@ -142,3 +155,94 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 def get_me(current_user: User = Depends(get_current_user)):
     """依赖注入:``get_current_user`` 失败时会自动返回 401。"""
     return ApiResponse(code=0, message="ok", data=UserInfo.model_validate(current_user))
+
+
+@router.put(
+    "/profile",
+    summary="修改个人资料",
+    description="更新当前用户的昵称。传 nickname 字段即可（可选，为空不修改）。",
+    response_model=ApiResponse[UserInfo],
+)
+def update_profile(
+    body: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if body.nickname is not None:
+        current_user.nickname = body.nickname.strip() or None
+        db.commit()
+        db.refresh(current_user)
+    return ApiResponse(
+        code=0, message="更新成功", data=UserInfo.model_validate(current_user)
+    )
+
+
+@router.post(
+    "/avatar",
+    summary="上传头像",
+    description="上传一张图片作为头像（支持 jpg/png/gif/webp），"
+    "上传成功后会删除旧头像文件并更新 avatar_url。",
+    response_model=ApiResponse[UserInfo],
+)
+async def upload_avatar_endpoint(
+    file: UploadFile = File(description="头像图片文件"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # 校验文件类型
+    allowed = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"}
+    if file.content_type and file.content_type not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的图片格式：{file.content_type}，仅支持 jpg/png/gif/webp/bmp",
+        )
+
+    # 读取文件内容
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="上传的文件为空")
+
+    max_size = 5 * 1024 * 1024  # 5MB
+    if len(contents) > max_size:
+        raise HTTPException(status_code=400, detail="文件大小不能超过 5MB")
+
+    # 删除旧头像（avatar_url 现在存的是 object_name）
+    if current_user.avatar_url:
+        delete_avatar(current_user.avatar_url)
+
+    # 上传新头像到 MinIO，只拿 object_name
+    filename = file.filename or "avatar.jpg"
+    object_name = upload_avatar(contents, filename, file.content_type or "image/jpeg")
+    current_user.avatar_url = object_name
+    db.commit()
+    db.refresh(current_user)
+
+    return ApiResponse(
+        code=0, message="头像上传成功", data=UserInfo.model_validate(current_user)
+    )
+
+
+@router.get(
+    "/avatar-file/{object_name}",
+    summary="获取头像图片",
+    description="代理 MinIO 中的头像文件。支持 ETag/If-None-Match 条件请求和浏览器缓存。",
+)
+def get_avatar_file(object_name: str, request: Request):
+    data, content_type, size, etag = get_avatar_stream(object_name)
+    if data is None:
+        raise HTTPException(status_code=404, detail="头像文件不存在")
+
+    headers = {
+        # 浏览器缓存：头像极少变动，缓存 24 小时
+        "Cache-Control": "public, max-age=86400, immutable",
+    }
+    if etag:
+        headers["ETag"] = f'"{etag}"'
+
+    # 支持条件请求：ETag 匹配时返回 304，浏览器直接用缓存
+    if etag:
+        if_none_match = request.headers.get("If-None-Match", "")
+        if if_none_match == f'"{etag}"':
+            return Response(status_code=304, headers=headers)
+
+    return Response(content=data, media_type=content_type or "image/jpeg", headers=headers)

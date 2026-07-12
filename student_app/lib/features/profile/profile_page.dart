@@ -3,13 +3,23 @@ import 'package:flutter/material.dart';
 import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
 import '../../core/token_storage.dart';
+import '../auth/auth_service.dart';
 import '../auth/student.dart';
+import 'edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key, required this.student, required this.onLogout});
+  const ProfilePage({
+    super.key,
+    required this.student,
+    required this.onLogout,
+    required this.authService,
+    required this.onProfileUpdated,
+  });
 
   final Student student;
   final VoidCallback onLogout;
+  final AuthService authService;
+  final ValueChanged<Student> onProfileUpdated;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -18,11 +28,21 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final _storage = TokenStorage();
   String _serverUrl = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
+  late Student _student;
 
   @override
   void initState() {
     super.initState();
+    _student = widget.student;
     _loadServerUrl();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.student != widget.student) {
+      _student = widget.student;
+    }
   }
 
   Future<void> _loadServerUrl() async {
@@ -34,6 +54,24 @@ class _ProfilePageState extends State<ProfilePage> {
             : ApiClient.defaultBaseUrl;
       });
     }
+  }
+
+  void _onProfileUpdated(Student updated) {
+    setState(() => _student = updated);
+    widget.onProfileUpdated(updated);
+  }
+
+  Future<void> _openEditProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditProfilePage(
+          student: _student,
+          authService: widget.authService,
+          onUpdated: _onProfileUpdated,
+        ),
+      ),
+    );
   }
 
   Future<void> _editServerUrl() async {
@@ -80,7 +118,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final student = widget.student;
+    final student = _student;
+    final apiBase = ApiClient.runtimeBaseUrl ?? ApiClient.defaultBaseUrl;
+    final avatarUrl = Student.resolveAvatarUrl(student.avatarUrl, apiBase);
+    final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
 
     return SafeArea(
       child: ListView(
@@ -119,24 +160,39 @@ class _ProfilePageState extends State<ProfilePage> {
                 CircleAvatar(
                   radius: 34,
                   backgroundColor: AppColors.softBlue,
-                  child: Text(
-                    student.avatarText,
-                    style: const TextStyle(
-                      color: AppColors.navy,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                  backgroundImage:
+                      hasAvatar ? NetworkImage(avatarUrl) : null,
+                  child: hasAvatar
+                      ? null
+                      : Text(
+                          student.avatarText,
+                          style: const TextStyle(
+                            color: AppColors.navy,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  student.name,
+                  student.displayName,
                   style: const TextStyle(
                     color: AppColors.navy,
                     fontSize: 24,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
+                if (student.nickname != null &&
+                    student.nickname!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    student.name,
+                    style: const TextStyle(
+                      color: AppColors.mutedText,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -158,6 +214,49 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 22),
                 _ProfileRow(label: '学号', value: student.studentNo ?? '-'),
                 _ProfileRow(label: '姓名', value: student.name),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // ── 编辑资料入口 ──
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              border: Border.all(color: AppColors.border),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  '个人资料',
+                  style: TextStyle(
+                    color: AppColors.navy,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton.icon(
+                  onPressed: _openEditProfile,
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: const Text('编辑资料'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.navy,
+                    side: const BorderSide(color: AppColors.border),
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '修改头像和昵称',
+                  style: TextStyle(color: AppColors.mutedText, fontSize: 12),
+                ),
               ],
             ),
           ),

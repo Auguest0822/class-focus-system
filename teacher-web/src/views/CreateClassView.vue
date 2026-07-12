@@ -80,7 +80,9 @@ const disabledStartMinutes = (hour, _role, comparingDate) => {
 
   if (!isSameDate(selectedDate, now) || hour !== now.getHours()) return []
 
-  return range(0, now.getMinutes())
+  // 允许当前分钟往前 2 分钟（与 isValidFutureStartTime 的容差保持一致）
+  const cutoff = now.getMinutes() - 2
+  return cutoff > 0 ? range(0, cutoff) : []
 }
 
 const disabledStartSeconds = (hour, minute, _role, comparingDate) => {
@@ -92,9 +94,12 @@ const disabledStartSeconds = (hour, minute, _role, comparingDate) => {
   return range(0, now.getSeconds())
 }
 
+// 允许 2 分钟容差：自动填充当前时间后填表不会立即过期
+const START_TIME_TOLERANCE_MS = 2 * 60 * 1000
+
 const isValidFutureStartTime = () => {
   const startTime = parseDateTimeText(form.startTime)
-  return !startTime || startTime.getTime() > Date.now()
+  return !startTime || startTime.getTime() > Date.now() - START_TIME_TOLERANCE_MS
 }
 
 const getNowDateTimeString = () => {
@@ -106,8 +111,7 @@ const getNowDateTimeString = () => {
 const handleStartTimeChange = () => {
   if (isValidFutureStartTime()) return
 
-  form.startTime = ''
-  ElMessage.warning('开课时间不能早于当前时间')
+  ElMessage.warning('开课时间已过当前时间，但仍可创建')
 }
 
 const getNextLessonName = (lessons = []) => {
@@ -181,8 +185,8 @@ const handleClassNameBlur = () => {
 }
 
 const handleCreate = async () => {
-  if (!isValidFutureStartTime()) {
-    ElMessage.warning('开课时间不能早于当前时间')
+  if (!form.startTime || !form.startTime.trim()) {
+    ElMessage.warning('请设置开课时间')
     return
   }
 

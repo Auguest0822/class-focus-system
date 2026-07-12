@@ -4,7 +4,7 @@
 # This file should be version controlled and should not be manually edited.
 
 version:
-  revision: "ad70ec4617166f1c38e5d2bfd388af71fda14f06"
+  revision: "f1875d570e39de09040c8f79aa13cc56baab8db1"
   channel: "stable"
 
 project_type: app
@@ -12,30 +12,26 @@ project_type: app
 # Tracks metadata for the flutter migrate command
 migration:
   platforms:
-    - platform: root
-      create_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
-      base_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
     - platform: android
-      create_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
-      base_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
+      creation_revision: f1875d570e39de09040c8f79aa13cc56baab8db1
+      created_at: "2026-07-01T00:00:00.000000"
     - platform: ios
-      create_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
-      base_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
+      creation_revision: f1875d570e39de09040c8f79aa13cc56baab8db1
+      created_at: "2026-07-01T00:00:00.000000"
     - platform: linux
-      create_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
-      base_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
+      creation_revision: f1875d570e39de09040c8f79aa13cc56baab8db1
+      created_at: "2026-07-01T00:00:00.000000"
     - platform: macos
-      create_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
-      base_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
+      creation_revision: f1875d570e39de09040c8f79aa13cc56baab8db1
+      created_at: "2026-07-01T00:00:00.000000"
     - platform: web
-      create_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
-      base_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
+      creation_revision: f1875d570e39de09040c8f79aa13cc56baab8db1
+      created_at: "2026-07-01T00:00:00.000000"
     - platform: windows
-      create_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
-      base_revision: ad70ec4617166f1c38e5d2bfd388af71fda14f06
+      creation_revision: f1875d570e39de09040c8f79aa13cc56baab8db1
+      created_at: "2026-07-01T00:00:00.000000"
 
   # User provided section
-
   # List of Local paths (relative to this file) that should be
   # ignored by the migrate tool.
   #
