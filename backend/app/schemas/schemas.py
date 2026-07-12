@@ -41,6 +41,8 @@ class TokenResponse(BaseModel):
     user_id: int = Field(description="用户 ID")
     role: str = Field(description="角色:teacher / student")
     name: str = Field(description="真实姓名")
+    student_no: Optional[str] = Field(default=None, description="学号(学生)")
+    teacher_no: Optional[str] = Field(default=None, description="工号(老师)")
 
 
 class UserInfo(BaseModel):

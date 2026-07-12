@@ -97,6 +97,12 @@ const isValidFutureStartTime = () => {
   return !startTime || startTime.getTime() > Date.now()
 }
 
+const getNowDateTimeString = () => {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+}
+
 const handleStartTimeChange = () => {
   if (isValidFutureStartTime()) return
 
@@ -203,7 +209,10 @@ const handleCreate = async () => {
   }
 }
 
-onMounted(loadCourseHistory)
+onMounted(() => {
+  form.startTime = getNowDateTimeString()
+  loadCourseHistory()
+})
 </script>
 
 <template>
