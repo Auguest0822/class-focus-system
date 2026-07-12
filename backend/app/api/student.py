@@ -114,11 +114,10 @@ def upload_usage_records(
         db.add(
             AppUsage(
                 classroom_id=body.classroom_id,
-
                 student_id=current_user.id,
-
                 app_package=record.app_package,
                 app_name=record.app_name,
+                category=record.category,
                 usage_seconds=record.usage_seconds,
                 start_time=record.start_time,
                 end_time=record.end_time,

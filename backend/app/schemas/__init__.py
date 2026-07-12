@@ -3,6 +3,8 @@ schemas 模块导出入口,集中导出所有请求 / 响应模型。
 """
 from app.schemas.schemas import (
     ApiResponse,
+    AppRankingItem,
+    AppTypeUsage,
     AppUsageBatch,
     AppUsageCreate,
     AppUsageInfo,
@@ -24,6 +26,8 @@ from app.schemas.schemas import (
 
 __all__ = [
     "ApiResponse",
+    "AppRankingItem",
+    "AppTypeUsage",
     "AppUsageBatch",
     "AppUsageCreate",
     "AppUsageInfo",

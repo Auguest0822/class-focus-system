@@ -124,6 +124,7 @@ class AppUsageTracker {
               usageSeconds: map['usageSeconds'] as int? ?? 0,
               startTime: map['startTime']?.toString(),
               endTime: map['endTime']?.toString(),
+              category: map['category']?.toString(),
             );
           })
           .where((r) => r.usageSeconds > 0)

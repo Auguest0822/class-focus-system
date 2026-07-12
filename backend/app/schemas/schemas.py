@@ -144,6 +144,7 @@ class AppUsageCreate(BaseModel):
 
     app_package: str = Field(description="应用包名,例如 com.tencent.mm")
     app_name: Optional[str] = Field(default=None, description="应用显示名,例如 微信")
+    category: Optional[str] = Field(default=None, description="Android 系统分类(API 26+),如 社交/游戏/视频")
     usage_seconds: int = Field(description="在课堂中使用该应用的秒数")
     start_time: Optional[datetime] = Field(default=None, description="开始使用时间(可选)")
     end_time: Optional[datetime] = Field(default=None, description="结束使用时间(可选)")
@@ -191,6 +192,7 @@ class StudentAppUsage(BaseModel):
 
     app_name: str = Field(description="应用名称,如 微信")
     app_package: str = Field(default="", description="包名,如 com.tencent.mm")
+    category: Optional[str] = Field(default=None, description="Android 系统分类,如 社交/游戏/视频")
     usage_seconds: int = Field(description="使用秒数")
 
 
@@ -203,6 +205,23 @@ class StudentReportItem(BaseModel):
     apps: list[StudentAppUsage] = Field(
         default_factory=list, description="各 App 使用明细（按秒数降序）"
     )
+
+
+class AppTypeUsage(BaseModel):
+    """App 类型使用概览中的单条记录。"""
+
+    category: str = Field(description="应用分类,如 社交 / 游戏 / 视频 / 音乐 / 购物 / 浏览器 / 其他")
+    total_seconds: int = Field(description="该分类所有 App 的使用总秒数")
+    percent: float = Field(description="该分类在总分心时长中的占比,0-100")
+
+
+class AppRankingItem(BaseModel):
+    """App 使用排行中的单条记录（跨所有学生聚合）。"""
+
+    app_name: str = Field(description="应用名称")
+    app_package: str = Field(default="", description="包名")
+    total_seconds: int = Field(description="所有学生使用该 App 的总秒数")
+    student_count: int = Field(description="使用过该 App 的学生人数")
 
 
 class ClassroomReportInfo(BaseModel):
@@ -220,6 +239,15 @@ class ClassroomReportInfo(BaseModel):
     generated_at: Optional[datetime] = Field(default=None, description="报告生成时间")
     student_stats: list[StudentReportItem] = Field(
         default_factory=list, description="每位学生的分心统计与 App 明细"
+    )
+    main_distract_type: Optional[str] = Field(
+        default=None, description="主要分心类型（占比最高的 App 分类）"
+    )
+    app_type_overview: list[AppTypeUsage] = Field(
+        default_factory=list, description="各 App 类型的使用时长与占比概览"
+    )
+    app_ranking: list[AppRankingItem] = Field(
+        default_factory=list, description="所有学生使用的各 App 总时长排行"
     )
 
 

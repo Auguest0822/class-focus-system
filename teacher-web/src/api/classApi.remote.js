@@ -105,7 +105,9 @@ const buildDashboardStats = (classes) => {
 }
 
 const currentOrFirstClass = (classes, id) =>
-  classes.find((item) => String(item.id) === String(id) || item.code === id) || classes[0] || {}
+  id
+    ? (classes.find((item) => String(item.id) === String(id) || item.code === id) || classes[classes.length - 1] || {})
+    : (classes[classes.length - 1] || classes[0] || {})
 
 const normalizeReportSummary = (report = {}) => [
   { label: '参与学生', value: String(report.total_students ?? '--') },
@@ -114,7 +116,7 @@ const normalizeReportSummary = (report = {}) => [
     label: '平均分心时长',
     value: report.average_usage_seconds == null ? '--' : `${Math.round(report.average_usage_seconds / 60)}m`,
   },
-  { label: '主要分心类型', value: report.main_distract_type ?? '--' },
+  { label: '主要分心类型', value: report.main_distract_type || '无' },
 ]
 
 const createPayload = (form) => {
@@ -199,6 +201,20 @@ export const getClassroomPhase = async (classroomId) => {
   return await request.get(`/teacher/classrooms/${classroomId}/phase`)
 }
 
+const CATEGORY_COLORS = {
+  社交: '#3b82f6',
+  游戏: '#ef4444',
+  视频: '#f97316',
+  音乐: '#8b5cf6',
+  购物: '#ec4899',
+  浏览器: '#06b6d4',
+  阅读: '#84cc16',
+  系统工具: '#6b7280',
+  其他: '#94a3b8',
+}
+
+const toCategoryColor = (cat) => CATEGORY_COLORS[cat] || CATEGORY_COLORS['其他']
+
 export const getClassReport = async (id) => {
   const classes = await getClasses()
   const classInfo = currentOrFirstClass(classes, id)
@@ -213,7 +229,24 @@ export const getClassReport = async (id) => {
       name: a.app_name || a.app_package || '未知',
       package: a.app_package || '',
       seconds: a.usage_seconds,
+      category: a.category || null,
     })),
+  }))
+
+  const appTypeOverview = (report.app_type_overview || []).map((t) => ({
+    category: t.category,
+    totalSeconds: t.total_seconds,
+    percent: t.percent,
+    color: toCategoryColor(t.category),
+  }))
+
+  const appRanking = (report.app_ranking || []).map((r) => ({
+    name: r.app_name,
+    package: r.app_package,
+    totalSeconds: r.total_seconds,
+    studentCount: r.student_count,
+    category: r.category,
+    color: toCategoryColor(r.category),
   }))
 
   return {
@@ -221,6 +254,7 @@ export const getClassReport = async (id) => {
     courses: groupByCourse(classes),
     summary: normalizeReportSummary(report),
     studentStats,
-    appUsage: report.app_usage || report.appUsage || [],
+    appTypeOverview,
+    appRanking,
   }
 }

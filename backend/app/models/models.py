@@ -86,6 +86,7 @@ class AppUsage(Base):
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     app_package = Column(String(128), nullable=False, index=True)                            # 应用包名(例如 com.tencent.mm)
     app_name = Column(String(128), nullable=True)                                            # 应用显示名(例如 微信)
+    category = Column(String(32), nullable=True, comment="Android 系统分类(API 26+);null 时交后端规则兜底")
     usage_seconds = Column(Integer, nullable=False, default=0)                               # 本次记录的使用秒数
     start_time = Column(DateTime, nullable=True)                                             # 可选:本次使用起始时间
     end_time = Column(DateTime, nullable=True)                                               # 可选:本次使用结束时间

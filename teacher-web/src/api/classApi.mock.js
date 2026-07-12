@@ -74,8 +74,10 @@ export const getMembers = async (classroomId) => {
   return wait([...students])
 }
 
-export const getClassDetail = (id = 'PY2025') => {
-  const currentClass = classes.find((item) => item.id === id || item.code === id) || classes[0]
+export const getClassDetail = (id) => {
+  const currentClass = id
+    ? (classes.find((item) => item.id === id || item.code === id) || classes[classes.length - 1])
+    : classes[classes.length - 1] || classes[0]
   return wait({
     classInfo: currentClass,
     courses: getCourseGroups(),
@@ -93,7 +95,20 @@ export const getClassReport = (id) => {
     courses: getCourseGroups(),
     summary: reportSummary,
     studentStats: students.filter((item) => item.focusRate !== '--'),
-    appUsage,
+    appTypeOverview: [
+      { category: '社交', totalSeconds: 3600, percent: 42.5, color: '#3b82f6' },
+      { category: '视频', totalSeconds: 2400, percent: 28.4, color: '#f97316' },
+      { category: '游戏', totalSeconds: 1200, percent: 14.2, color: '#ef4444' },
+      { category: '音乐', totalSeconds: 720, percent: 8.5, color: '#8b5cf6' },
+      { category: '其他', totalSeconds: 540, percent: 6.4, color: '#94a3b8' },
+    ],
+    appRanking: [
+      { name: '微信', package: 'com.tencent.mm', totalSeconds: 2400, studentCount: 28 },
+      { name: '抖音', package: 'com.ss.android.ugc.aweme', totalSeconds: 1800, studentCount: 22 },
+      { name: '王者荣耀', package: 'com.tencent.tmgp.sgame', totalSeconds: 1200, studentCount: 15 },
+      { name: 'QQ音乐', package: 'com.tencent.qqmusic', totalSeconds: 720, studentCount: 18 },
+      { name: 'Chrome', package: 'com.android.chrome', totalSeconds: 540, studentCount: 12 },
+    ],
   })
 }
 
