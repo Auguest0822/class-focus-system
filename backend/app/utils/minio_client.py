@@ -3,7 +3,14 @@ MinIO 对象存储客户端封装。
 
 提供头像上传、删除和 URL 生成功能。Bucket 设为 public-read，
 直接返回 HTTP URL，前端无需签名即可访问。
+
+缓存策略
+--------
+- 内存缓存：``get_avatar_stream()`` 把头像字节缓存 TTL 秒，避免每次请求都打 MinIO。
+- 上传/删除时自动刷新缓存，保证头像更新即时生效。
 """
+import hashlib
+import time
 import uuid
 from typing import Optional
 
@@ -13,6 +20,36 @@ from minio.error import S3Error
 from app.core.config import settings
 
 _client: Optional[Minio] = None
+
+# ── 内存缓存 ──────────────────────────────────────────────
+# key: object_name → value: (data, content_type, size, mtime, cached_at)
+_avatar_cache: dict = {}
+_AVATAR_CACHE_TTL = 1800  # 30 分钟——头像极少变动，TTL 可以很长
+
+
+def _cache_key(object_name: str) -> str:
+    return object_name
+
+
+def _cache_get(object_name: str):
+    """命中返回 (data, content_type, size, etag)，否则返回 None。"""
+    entry = _avatar_cache.get(_cache_key(object_name))
+    if entry is None:
+        return None
+    _data, ctype, size, _mtime, cached_at = entry
+    if time.time() - cached_at > _AVATAR_CACHE_TTL:
+        _avatar_cache.pop(_cache_key(object_name), None)
+        return None
+    etag = hashlib.md5(_data).hexdigest()
+    return _data, ctype, size, etag
+
+
+def _cache_set(object_name: str, data: bytes, content_type: str, size: int):
+    _avatar_cache[_cache_key(object_name)] = (data, content_type, size, time.time(), time.time())
+
+
+def _cache_invalidate(object_name: str):
+    _avatar_cache.pop(_cache_key(object_name), None)
 
 
 def get_minio_client() -> Minio:
@@ -85,9 +122,10 @@ def upload_avatar(file_bytes: bytes, filename: str, content_type: str) -> str:
 
 
 def delete_avatar(object_name: str) -> None:
-    """从 MinIO 中删除指定头像文件（静默失败，不存在也不报错）。"""
+    """从 MinIO 中删除指定头像文件并清除缓存（静默失败，不存在也不报错）。"""
     if not object_name:
         return
+    _cache_invalidate(object_name)
     client = get_minio_client()
     try:
         client.remove_object(settings.MINIO_BUCKET, object_name)
@@ -96,7 +134,20 @@ def delete_avatar(object_name: str) -> None:
 
 
 def get_avatar_stream(object_name: str) -> tuple:
-    """从 MinIO 获取头像文件流，返回 (bytes, content_type, content_length)。"""
+    """从缓存或 MinIO 获取头像文件流。
+
+    返回 (data, content_type, size, etag)。
+    etag 用于 HTTP 条件请求（If-None-Match → 304）。
+    """
+    if not object_name:
+        return None, None, 0, None
+
+    # 1) 先查内存缓存
+    cached = _cache_get(object_name)
+    if cached is not None:
+        return cached
+
+    # 2) 缓存未命中 → 从 MinIO 拉取
     client = get_minio_client()
     try:
         stat = client.stat_object(settings.MINIO_BUCKET, object_name)
@@ -104,6 +155,11 @@ def get_avatar_stream(object_name: str) -> tuple:
         data = response.read()
         response.close()
         response.release_conn()
-        return data, stat.content_type or "image/jpeg", stat.size
+
+        content_type = stat.content_type or "image/jpeg"
+        # 加入缓存
+        _cache_set(object_name, data, content_type, stat.size or 0)
+        etag = hashlib.md5(data).hexdigest()
+        return data, content_type, stat.size or 0, etag
     except S3Error:
-        return None, None, 0
+        return None, None, 0, None

@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # token 有效期(分钟)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
+    # ─── Redis ──────────────────────────────────────────────
+    REDIS_HOST: str = "127.0.0.1"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str = ""
+
     # ─── MinIO ──────────────────────────────────────────────
     MINIO_ENDPOINT: str = "127.0.0.1:9000"       # 后端 SDK 连接 MinIO 用
     MINIO_PUBLIC_ENDPOINT: str = "127.0.0.1:9000" # 返回给前端的 URL 用（手机需设 PC 的局域网 IP）

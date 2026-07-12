@@ -1,7 +1,7 @@
 """
 认证相关接口:注册、登录、获取当前用户信息、修改个人资料、上传头像。
 """
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -225,10 +225,24 @@ async def upload_avatar_endpoint(
 @router.get(
     "/avatar-file/{object_name}",
     summary="获取头像图片",
-    description="代理 MinIO 中的头像文件，前端直接用此 URL 即可展示图片，无需直接访问 MinIO。",
+    description="代理 MinIO 中的头像文件。支持 ETag/If-None-Match 条件请求和浏览器缓存。",
 )
-def get_avatar_file(object_name: str):
-    data, content_type, _ = get_avatar_stream(object_name)
+def get_avatar_file(object_name: str, request: Request):
+    data, content_type, size, etag = get_avatar_stream(object_name)
     if data is None:
         raise HTTPException(status_code=404, detail="头像文件不存在")
-    return Response(content=data, media_type=content_type or "image/jpeg")
+
+    headers = {
+        # 浏览器缓存：头像极少变动，缓存 24 小时
+        "Cache-Control": "public, max-age=86400, immutable",
+    }
+    if etag:
+        headers["ETag"] = f'"{etag}"'
+
+    # 支持条件请求：ETag 匹配时返回 304，浏览器直接用缓存
+    if etag:
+        if_none_match = request.headers.get("If-None-Match", "")
+        if if_none_match == f'"{etag}"':
+            return Response(status_code=304, headers=headers)
+
+    return Response(content=data, media_type=content_type or "image/jpeg", headers=headers)

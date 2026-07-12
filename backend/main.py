@@ -147,6 +147,10 @@ def on_startup():
 
         conn.commit()
 
+    # ── 检测 Redis 连通性 ──
+    from app.utils.redis_client import check_redis
+    check_redis()
+
 
 # ─────────────────────────── 注册路由 ───────────────────────────
 app.include_router(auth.router)

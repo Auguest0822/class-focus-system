@@ -294,6 +294,8 @@ def start_classroom(
     classroom.started_at = datetime.now()
     db.commit()
     db.refresh(classroom)
+    from app.utils.redis_client import cache_delete
+    cache_delete(f"members:{classroom_id}")
     return ApiResponse(
         code=0, message="已开始", data=ClassroomInfo.model_validate(classroom)
     )
@@ -325,6 +327,8 @@ def end_classroom(
     classroom.ended_at = datetime.now()
     db.commit()
     db.refresh(classroom)
+    from app.utils.redis_client import cache_delete
+    cache_delete(f"members:{classroom_id}")
     return ApiResponse(
         code=0, message="已结束", data=ClassroomInfo.model_validate(classroom)
     )
@@ -402,6 +406,18 @@ def classroom_members(
     if not classroom:
         raise HTTPException(status_code=404, detail="课堂不存在")
 
+    # ── Redis 缓存：直接返回序列化的 list[dict] ──
+    cache_key = f"members:{classroom_id}"
+    from app.utils.redis_client import cache_get, cache_set
+
+    cached = cache_get(cache_key)
+    if cached is not None:
+        # 命中的是 list[dict]，需要还原为 list[StudentSummary]
+        return ApiResponse(
+            code=0, message="ok",
+            data=[StudentSummary(**item) for item in cached],
+        )
+
     # 查出所有学生成员及其用户资料
     members = (
         db.query(ClassroomMember, User)
@@ -410,17 +426,28 @@ def classroom_members(
         .all()
     )
 
-    # 对每个学生聚合出总秒数和高频应用
-    results: list[StudentSummary] = []
-    for member, user in members:
-        records = (
+    # 一次性批量捞出所有学生的 AppUsage，避免 N+1
+    student_ids = [user.id for _, user in members]
+    all_records: list[AppUsage] = []
+    if student_ids:
+        all_records = (
             db.query(AppUsage)
             .filter(
                 AppUsage.classroom_id == classroom_id,
-                AppUsage.student_id == user.id,
+                AppUsage.student_id.in_(student_ids),
             )
             .all()
         )
+
+    # 按 student_id 预分组，纯内存操作
+    records_by_student: dict[int, list[AppUsage]] = {}
+    for r in all_records:
+        records_by_student.setdefault(r.student_id, []).append(r)
+
+    # 对每个学生聚合出总秒数和高频应用
+    results: list[StudentSummary] = []
+    for member, user in members:
+        records = records_by_student.get(user.id, [])
         total = sum(r.usage_seconds for r in records)
         app_agg: dict[str, int] = {}
         for r in records:
@@ -440,6 +467,9 @@ def classroom_members(
                 top_apps=[{"app": a, "seconds": s} for a, s in top_apps],
             )
         )
+
+    # 写入 Redis 缓存，TTL 3 秒（短于前端 5 秒轮询，保证下次轮询能看到新数据）
+    cache_set(cache_key, [r.model_dump() for r in results])
     return ApiResponse(code=0, message="ok", data=results)
 
 
