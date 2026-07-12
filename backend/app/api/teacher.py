@@ -412,7 +412,7 @@ def classroom_members(
 
     # 对每个学生聚合出总秒数和高频应用
     results: list[StudentSummary] = []
-    for _, user in members:
+    for member, user in members:
         records = (
             db.query(AppUsage)
             .filter(
@@ -433,6 +433,9 @@ def classroom_members(
                 student_id=user.id,
                 student_name=user.name,
                 student_no=user.student_no,
+                nickname=user.nickname,
+                avatar_url=user.avatar_url,
+                joined_at=member.joined_at,
                 total_seconds=total,
                 top_apps=[{"app": a, "seconds": s} for a, s in top_apps],
             )
@@ -478,6 +481,8 @@ def get_classroom_report(
         StudentReportItem(
             student_name=s["student_name"],
             student_no=s.get("student_no"),
+            nickname=s.get("nickname"),
+            avatar_url=s.get("avatar_url"),
             total_seconds=s["total_seconds"],
             apps=[
                 StudentAppUsage(
@@ -609,6 +614,8 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
             AppUsage.student_id,
             User.name,
             User.student_no,
+            User.nickname,
+            User.avatar_url,
             AppUsage.app_name,
             AppUsage.app_package,
             AppUsage.category,
@@ -620,6 +627,8 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
             AppUsage.student_id,
             User.name,
             User.student_no,
+            User.nickname,
+            User.avatar_url,
             AppUsage.app_name,
             AppUsage.app_package,
             AppUsage.category,
@@ -629,11 +638,13 @@ def _build_student_stats(db: Session, classroom_id: int) -> list[dict]:
     )
 
     student_map: dict[int, dict] = {}
-    for sid, name, sno, app_name, app_pkg, category, sec in detail_rows:
+    for sid, name, sno, nickname, avatar_url, app_name, app_pkg, category, sec in detail_rows:
         if sid not in student_map:
             student_map[sid] = {
                 "student_name": name or sno or f"学生{sid}",
                 "student_no": sno,
+                "nickname": nickname,
+                "avatar_url": avatar_url,
                 "total_seconds": 0,
                 "apps": [],
             }

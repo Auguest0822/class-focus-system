@@ -60,14 +60,27 @@ const normalizeClassroom = (item = {}) => {
   }
 }
 
+const toJoinTimeText = (value) => {
+  if (!value) return ''
+  const text = value.toString()
+  // ISO 格式 "2026-07-12T08:30:00" → "08:30"
+  const m = text.match(/T(\d{2}):(\d{2})/)
+  if (m) return `${m[1]}:${m[2]}`
+  // "YYYY-MM-DD HH:MM" 格式
+  const m2 = text.match(/(\d{2}):(\d{2})$/)
+  if (m2) return `${m2[1]}:${m2[2]}`
+  return ''
+}
+
 const normalizeStudent = (item = {}) => ({
   ...item,
   id: item.student_no ?? item.id,
   name: item.name ?? item.student_name ?? '',
-  joinTime: toDateTimeText(item.joined_at ?? item.joinTime),
+  nickname: item.nickname ?? '',
+  joinTime: toJoinTimeText(item.joined_at ?? item.joinTime),
+  avatarUrl: item.avatar_url || item.avatarUrl || null,
   status: item.has_uploaded_usage ? '数据已上传' : item.status || '已加入',
   statusType: item.has_uploaded_usage ? 'success' : item.statusType || 'primary',
-  focusRate: item.focus_rate ? `${item.focus_rate}%` : item.focusRate || '--',
 })
 
 const groupByCourse = (classes) => {
@@ -223,6 +236,8 @@ export const getClassReport = async (id) => {
   const studentStats = (report.student_stats || []).map((s) => ({
     name: s.student_name || s.student_no || '未知',
     studentNo: s.student_no || '',
+    nickname: s.nickname || '',
+    avatarUrl: s.avatar_url || null,
     totalSeconds: s.total_seconds,
     distractMinutes: Math.round(s.total_seconds / 60),
     apps: (s.apps || []).map((a) => ({

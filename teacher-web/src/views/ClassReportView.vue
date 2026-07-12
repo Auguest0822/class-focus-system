@@ -87,6 +87,18 @@ const formatLessonTime = (lesson) => {
   return `${startTime}-${endDate} ${endStr}`
 }
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || '/api'
+const baseUrl = apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase
+const resolveAvatarUrl = (raw) => {
+  if (!raw) return null
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
+  return `${baseUrl}/api/auth/avatar-file/${raw}`
+}
+
+const displayName = (s) => {
+  return (s.nickname && s.nickname !== '') ? s.nickname : s.name
+}
+
 const reportStatusText = (lesson) => {
   if (lesson.status === 'ended') return '已生成报告'
   if (lesson.status === 'running') return '进行中'
@@ -161,7 +173,14 @@ const emptyReportText = computed(() => {
                     <el-collapse-item v-for="(student, index) in studentStats" :key="index" :name="index">
                       <template #title>
                         <div class="student-collapse-title">
-                          <span class="student-name">{{ student.name }}</span>
+                          <el-avatar
+                            :size="32"
+                            :src="resolveAvatarUrl(student.avatarUrl)"
+                          >
+                            {{ (student.nickname || student.name || '学').charAt(0) }}
+                          </el-avatar>
+                          <span class="student-name">{{ displayName(student) }}</span>
+                          <span v-if="student.nickname && student.nickname !== ''" class="student-real-name-sm">{{ student.name }}</span>
                           <span class="student-no" v-if="student.studentNo">{{ student.studentNo }}</span>
                           <el-tag type="warning" size="small" effect="plain" round>
                             分心 {{ student.distractMinutes }} 分钟
@@ -462,8 +481,13 @@ h2 {
 .student-collapse-title {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
+}
+
+.student-real-name-sm {
+  color: #94a3b8;
+  font-size: 12px;
 }
 
 .student-name {

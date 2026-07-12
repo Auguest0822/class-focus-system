@@ -191,6 +191,9 @@ class StudentSummary(BaseModel):
     student_id: int = Field(description="学生 ID")
     student_name: str = Field(description="学生姓名")
     student_no: Optional[str] = Field(default=None, description="学号")
+    nickname: Optional[str] = Field(default=None, description="自定义昵称")
+    avatar_url: Optional[str] = Field(default=None, description="头像标识(object_name)")
+    joined_at: Optional[datetime] = Field(default=None, description="加入课堂时间")
     total_seconds: int = Field(default=0, description="该学生在课堂内使用手机的总秒数")
     top_apps: List[dict] = Field(
         default_factory=list,
@@ -213,6 +216,8 @@ class StudentReportItem(BaseModel):
 
     student_name: str = Field(description="学生姓名")
     student_no: Optional[str] = Field(default=None, description="学号")
+    nickname: Optional[str] = Field(default=None, description="自定义昵称")
+    avatar_url: Optional[str] = Field(default=None, description="头像标识(object_name)")
     total_seconds: int = Field(description="该学生在本次课堂中分心总秒数")
     apps: list[StudentAppUsage] = Field(
         default_factory=list, description="各 App 使用明细（按秒数降序）"
