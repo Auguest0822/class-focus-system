@@ -71,6 +71,8 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
             user_id=user.id,
             role=user.role,
             name=user.name,
+            student_no=student_no,
+            teacher_no=teacher_no,
         ),
     )
 
@@ -125,6 +127,8 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
             user_id=user.id,
             role=user.role,
             name=user.name,
+            student_no=user.student_no,
+            teacher_no=user.teacher_no,
         ),
     )
 
