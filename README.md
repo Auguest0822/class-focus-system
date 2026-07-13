@@ -2,6 +2,10 @@
 
 面向大学课堂的专注管理系统。学生端记录课堂期间的 App 使用情况，老师端查看课堂状态、学生使用记录和课堂报告，帮助师生了解课堂中的手机使用情况。
 
+<img width="2497" height="1485" alt="07d3f78fae7038728ae4c603186fa201" src="https://github.com/user-attachments/assets/e7fa1067-9448-4a62-af60-21168d6a6f16" />
+<img width="918" height="1920" alt="b6e900b159d3a6f116a94642fbce987f" src="https://github.com/user-attachments/assets/afd9ec36-7966-4a7d-bc29-e0f1f1fac7de" />
+
+
 > 📷 **建议配图：** 在这里放一张系统首页拼图，左侧为学生端，右侧为老师端。
 
 ## 项目简介
@@ -18,6 +22,12 @@
 - 采集并上传课堂期间的 App 使用记录
 - 查看个人课堂报告
 - 修改昵称和头像
+<img width="907" height="1920" alt="606f100aec356b0adf408778aaae3adb" src="https://github.com/user-attachments/assets/edc8c1c6-53eb-4eae-9425-820f4991d0bf" />
+<img width="904" height="1920" alt="933545e6944c03d76f22cb9c713a3bad" src="https://github.com/user-attachments/assets/6802b0bd-8c37-4d48-8210-12ee2ca6b788" />
+<img width="911" height="1920" alt="2dd47964fbb55bb71569e3b7090f5158" src="https://github.com/user-attachments/assets/a5674b4b-75d4-4368-a6fb-f883c879abcd" />
+<img width="913" height="1920" alt="2ebb134166282302ad56237f3f406b9a" src="https://github.com/user-attachments/assets/13f9dd5c-ba11-426d-81de-1d9220ba99c8" />
+
+
 
 > 📷 **建议配图：** 学生端“加入课堂—课堂倒计时—个人报告—个人资料”四张页面截图。
 
@@ -29,6 +39,11 @@
 - 查看应用分类占比、应用排行和学生统计
 - 导出 Excel 课堂报告
 - 修改昵称和头像
+
+<img width="2497" height="1485" alt="0077f04c19813b64621c7b3ff2112aa6" src="https://github.com/user-attachments/assets/e3babea1-b5a8-4f58-bca2-0547e19a2211" />
+<img width="2497" height="1485" alt="0119dc5e7b5cd8ccdf4ee923aa772cd2" src="https://github.com/user-attachments/assets/b15d5487-46fa-4e08-a00b-f2c55d74327f" />
+<img width="1630" height="1169" alt="7839d976fa70e3ff779eec6b3e675f36" src="https://github.com/user-attachments/assets/4c40eda9-d6be-4b0f-ad6a-af4d5f77b071" />
+<img width="1595" height="851" alt="1c4be1d031bb47d341a0af1403a6ec0d" src="https://github.com/user-attachments/assets/ed38e04b-10a1-4c91-9ac3-9b1f6f7a512a" />
 
 > 📷 **建议配图：** 老师端“创建课堂—当前课堂—报告详情”三张页面截图。
 
