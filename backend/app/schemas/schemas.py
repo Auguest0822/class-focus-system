@@ -135,6 +135,8 @@ class ClassroomInCourse(BaseModel):
     scheduled_start_at: Optional[datetime] = Field(default=None, description="计划开课时间")
     started_at: Optional[datetime] = Field(default=None, description="实际开始时间")
     ended_at: Optional[datetime] = Field(default=None, description="实际结束时间")
+    joined_count: int = Field(default=0, description="已加入学生数")
+    focus_score: Optional[float] = Field(default=None, description="专注度评分(已生成报告时)")
 
 
 class CourseGroupInfo(BaseModel):

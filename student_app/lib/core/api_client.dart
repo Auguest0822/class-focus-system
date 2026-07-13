@@ -10,7 +10,7 @@ class ApiClient {
   /// 编译期默认地址，可通过 flutter run --dart-define=API_BASE_URL=... 覆盖。
   static const String defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.162.151.59:8000/api',
+    defaultValue: 'http://10.33.100.176:8000/api',
   );
 
   static String _resolveBaseUrl() {
