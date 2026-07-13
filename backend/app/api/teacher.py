@@ -162,7 +162,6 @@ def _serialize_report(report: ClassroomReport) -> ClassroomReportInfo:
     summary="按课程分组的课堂列表",
     description="返回当前老师创建的所有课堂,按 course_no / course_name 聚合分组,"
     "方便前端做 '课程 → 课次' 两层页面结构。",
-    response_model=ApiResponse[list[CourseGroupInfo]],
 )
 def list_courses(
     db: Session = Depends(get_db),
@@ -177,6 +176,43 @@ def list_courses(
         )
         .all()
     )
+
+    # ── 批量查询：学生加入人数 ──
+    classroom_ids = [c.id for c in classrooms]
+    member_counts: dict[int, int] = {}
+    if classroom_ids:
+        rows = (
+            db.query(
+                ClassroomMember.classroom_id,
+                func.count(ClassroomMember.student_id),
+            )
+            .filter(ClassroomMember.classroom_id.in_(classroom_ids))
+            .group_by(ClassroomMember.classroom_id)
+            .all()
+        )
+        member_counts = {cid: int(cnt) for cid, cnt in rows}
+
+    # ── 批量查询：已有报告的专注度评分 ──
+    report_scores: dict[int, float] = {}
+    if classroom_ids:
+        rows = (
+            db.query(
+                ClassroomReport.classroom_id,
+                ClassroomReport.focus_score,
+            )
+            .filter(ClassroomReport.classroom_id.in_(classroom_ids))
+            .all()
+        )
+        report_scores = {cid: float(score) for cid, score in rows}
+
+    # ── 去重学生总数（同一学生加多个课堂只算一次）──
+    total_distinct_students = 0
+    if classroom_ids:
+        total_distinct_students = (
+            db.query(func.count(func.distinct(ClassroomMember.student_id)))
+            .filter(ClassroomMember.classroom_id.in_(classroom_ids))
+            .scalar()
+        ) or 0
 
     # 按 (course_no, course_name) 分组
     groups: dict[tuple[str, str], list[Classroom]] = {}
@@ -204,13 +240,22 @@ def list_courses(
                         scheduled_start_at=c.scheduled_start_at,
                         started_at=c.started_at,
                         ended_at=c.ended_at,
+                        joined_count=member_counts.get(c.id, 0),
+                        focus_score=report_scores.get(c.id),
                     )
                     for c in items
                 ],
             )
         )
 
-    return ApiResponse(code=0, message="ok", data=result)
+    return ApiResponse(
+        code=0,
+        message="ok",
+        data={
+            "courses": result,
+            "total_distinct_students": total_distinct_students,
+        },
+    )
 
 
 @router.post(

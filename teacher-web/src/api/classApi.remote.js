@@ -108,13 +108,23 @@ const groupByCourse = (classes) => {
 
 const buildDashboardStats = (classes) => {
   const courses = new Set(classes.map((item) => item.courseNo || item.courseName).filter(Boolean))
-  const studentCount = classes.reduce((total, item) => total + Number(item.joinedCount || 0), 0)
+  // 去重学生总数（后端计算，同一学生加多个课堂只算一次）
+  const studentCount = classes._totalDistinctStudents ?? 0
+
+  const scoredClasses = classes.filter((item) => item.focus_score != null)
+  const avgFocus =
+    scoredClasses.length > 0
+      ? Math.round(
+          scoredClasses.reduce((sum, item) => sum + Number(item.focus_score), 0) /
+            scoredClasses.length,
+        )
+      : null
 
   return [
     { label: '累计课程', value: String(courses.size) },
     { label: '累计课堂', value: String(classes.length) },
     { label: '累计参与学生', value: String(studentCount) },
-    { label: '近期平均专注率', value: '--' },
+    { label: '近期平均专注率', value: avgFocus != null ? `${avgFocus}%` : '--' },
   ]
 }
 
@@ -161,16 +171,18 @@ export const getDashboard = async () => {
 }
 
 export const getClasses = async () => {
-  const groups = await request.get('/teacher/courses')
-  // 后端按课程返回 CourseGroupInfo[];前端内部统一成 "单个课次" 的扁平列表,
-  // 以便下游 normalizeClassroom / DashboardView / ClassDetailView / ClassReportView
-  // 继续按 "某一次课堂" 来处理。
+  const data = await request.get('/teacher/courses')
+  // 后端返回 { courses: [...], total_distinct_students: N } (新) 或直接是数组 (旧兼容)
+  const groups = Array.isArray(data) ? data : (data.courses || [])
+  const totalDistinctStudents = Array.isArray(data) ? 0 : (data.total_distinct_students || 0)
   const list = Array.isArray(groups) ? groups.flatMap((g) => (g.classrooms || []).map((c) => ({
     ...c,
     course_no: g.course_no,
     course_name: g.course_name,
   }))) : []
-  return list.map(normalizeClassroom)
+  const classes = list.map(normalizeClassroom)
+  classes._totalDistinctStudents = totalDistinctStudents
+  return classes
 }
 
 export const createClass = async (form) => {
