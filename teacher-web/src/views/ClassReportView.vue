@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { getClassReport, exportReport } from '@/api/classApi'
 import ReportSummaryCard from '@/components/ReportSummaryCard.vue'
@@ -28,6 +28,11 @@ const loadReport = async (lessonId) => {
 }
 
 onMounted(() => loadReport(route.params.id))
+
+// 监听路由参数变化（如从课堂详情跳转过来），自动刷新报告
+watch(() => route.params.id, (newId) => {
+  if (newId) loadReport(newId)
+})
 
 const allLessons = computed(() => courses.value.flatMap((course) => course.lessons))
 
@@ -119,6 +124,8 @@ const handleExport = async () => {
   try {
     const name = selectedLesson.value?.className || '课堂报告'
     await exportReport(selectedLessonId.value, name)
+    // 导出后刷新报告数据
+    await loadReport(selectedLessonId.value)
   } catch (e) {
     // 导出失败静默处理
   } finally {

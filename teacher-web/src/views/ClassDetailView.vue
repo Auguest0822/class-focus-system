@@ -151,6 +151,8 @@ const handleEndClass = async () => {
   isRunning.value = false
   phaseInfo.value = null
   await refreshClassData()
+  // 结束课堂后自动跳转到报告页面
+  router.push(selectedLessonId.value ? `/class-report/${selectedLessonId.value}` : '/class-report')
 }
 
 // ── 组件卸载时清理所有定时器 ──

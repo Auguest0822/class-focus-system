@@ -12,12 +12,16 @@ from app.core.deps import get_current_user, require_role
 from app.models import AppUsage, Classroom, ClassroomMember, ClassroomReport, User
 from app.schemas import (
     ApiResponse,
+    AppRankingItem,
     AppUsageBatch,
     AppUsageInfo,
     ClassroomInfo,
     ClassroomJoin,
     PhaseInfo,
+    StudentClassroomReportInfo,
+    StudentReportAppUsage,
 )
+from sqlalchemy import func
 from app.utils.phase import calculate_phase
 
 router = APIRouter(prefix="/api/student", tags=["学生"])
@@ -176,6 +180,158 @@ def my_usage_in_classroom(
         message="ok",
         data=[AppUsageInfo.model_validate(r) for r in records],
     )
+
+
+@router.get(
+    "/classrooms/{classroom_id}/report",
+    summary="查询学生个人课堂报告",
+    description="返回个人专注度评分、App使用明细及班级匿名汇总。若教师尚未生成报告则实时计算。",
+    response_model=ApiResponse[StudentClassroomReportInfo],
+)
+def get_student_classroom_report(
+    classroom_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("student")),
+):
+    # 1) 鉴权 — 确认学生已加入该课堂
+    member = (
+        db.query(ClassroomMember)
+        .filter(
+            ClassroomMember.classroom_id == classroom_id,
+            ClassroomMember.student_id == current_user.id,
+        )
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=403, detail="未加入该课堂")
+
+    # 2) 加载课堂
+    classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
+    if not classroom:
+        raise HTTPException(status_code=404, detail="课堂不存在")
+
+    # 课堂总时长(秒)
+    total_class_duration = (
+        (classroom.focus1_minutes or 45)
+        + (classroom.break_minutes or 5)
+        + (classroom.focus2_minutes or 45)
+    ) * 60
+
+    # 3) 班级汇总 — 优先用已有报告，没有则实时聚合
+    report = (
+        db.query(ClassroomReport)
+        .filter(ClassroomReport.classroom_id == classroom_id)
+        .first()
+    )
+
+    total_students = (
+        db.query(func.count(func.distinct(ClassroomMember.student_id)))
+        .filter(ClassroomMember.classroom_id == classroom_id)
+        .scalar()
+    ) or 0
+
+    if report:
+        class_avg = report.average_usage_seconds
+        class_focus = report.focus_score
+        suggestions = report.suggestions
+        generated_at = report.generated_at.isoformat() if report.generated_at else None
+    else:
+        total_usage = (
+            db.query(func.coalesce(func.sum(AppUsage.usage_seconds), 0))
+            .filter(AppUsage.classroom_id == classroom_id)
+            .scalar()
+        ) or 0
+        class_avg = total_usage / total_students if total_students else 0.0
+        class_focus = (
+            max(0.0, 100.0 - (class_avg / total_class_duration) * 100)
+            if total_class_duration > 0 and class_avg > 0
+            else 100.0
+        )
+        class_focus = round(class_focus, 2)
+        suggestions = None
+        generated_at = None
+
+    # 4) 个人数据 — 当前学生自己的使用记录
+    personal_rows = (
+        db.query(
+            AppUsage.app_name,
+            AppUsage.app_package,
+            AppUsage.category,
+            func.sum(AppUsage.usage_seconds).label("sec"),
+        )
+        .filter(
+            AppUsage.classroom_id == classroom_id,
+            AppUsage.student_id == current_user.id,
+        )
+        .group_by(AppUsage.app_package, AppUsage.app_name, AppUsage.category)
+        .order_by(func.sum(AppUsage.usage_seconds).desc())
+        .all()
+    )
+
+    personal_total = sum(int(r.sec or 0) for r in personal_rows)
+    personal_focus = (
+        max(0.0, 100.0 - (personal_total / total_class_duration) * 100)
+        if total_class_duration > 0
+        else 100.0
+    )
+    personal_focus = round(personal_focus, 2)
+
+    personal_apps: list[StudentReportAppUsage] = []
+    for name, pkg, cat, sec in personal_rows:
+        s = int(sec or 0)
+        personal_apps.append(
+            StudentReportAppUsage(
+                app_name=name or pkg or "未知应用",
+                app_package=pkg or "",
+                category=cat,
+                usage_seconds=s,
+                percent=round(s / personal_total * 100, 1) if personal_total > 0 else 0.0,
+            )
+        )
+
+    # 5) 班级 App 排行 — 跨所有学生聚合
+    ranking_rows = (
+        db.query(
+            AppUsage.app_name,
+            AppUsage.app_package,
+            func.sum(AppUsage.usage_seconds).label("sec"),
+            func.count(func.distinct(AppUsage.student_id)).label("stu_count"),
+        )
+        .filter(AppUsage.classroom_id == classroom_id)
+        .group_by(AppUsage.app_package, AppUsage.app_name)
+        .order_by(func.sum(AppUsage.usage_seconds).desc())
+        .all()
+    )
+
+    app_ranking = [
+        AppRankingItem(
+            app_name=(name or pkg or "未知应用"),
+            app_package=pkg or "",
+            total_seconds=int(sec or 0),
+            student_count=int(stu_count or 0),
+        )
+        for name, pkg, sec, stu_count in ranking_rows
+    ]
+
+    # 主要分心类型 — ClassroomReport 表中不存储此字段（老师端动态计算）
+    # 学生端暂时不计算，避免引入 teacher.py 中的分类逻辑依赖
+    main_distract = None
+
+    result = StudentClassroomReportInfo(
+        classroom_id=classroom_id,
+        total_students=total_students,
+        class_average_usage_seconds=round(class_avg, 2) if isinstance(class_avg, float) else float(class_avg),
+        class_focus_score=float(class_focus),
+        main_distract_type=main_distract,
+        suggestions=suggestions,
+        generated_at=generated_at,
+        personal_total_seconds=personal_total,
+        personal_focus_score=personal_focus,
+        personal_apps=personal_apps,
+        app_ranking=app_ranking,
+    )
+
+    return ApiResponse(code=0, message="ok", data=result)
 
 
 @router.get(
