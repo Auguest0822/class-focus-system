@@ -69,73 +69,126 @@ class ClassroomReport {
   const ClassroomReport({
     required this.id,
     required this.classroomId,
+    // 班级汇总
     required this.totalStudents,
-    required this.averageUsageSeconds,
-    required this.focusScore,
-    this.topApps,
+    required this.classAverageUsageSeconds,
+    required this.classFocusScore,
+    this.mainDistractType,
     this.suggestions,
     this.generatedAt,
-    this.appUsageDetails = const [],
+    // 个人数据
+    required this.personalTotalSeconds,
+    required this.personalFocusScore,
+    this.personalApps = const [],
+    // 班级排行
+    this.appRanking = const [],
   });
 
   final int id;
   final int classroomId;
   final int totalStudents;
-  final double averageUsageSeconds;
-  final double focusScore;
-  final String? topApps;
+  final double classAverageUsageSeconds;
+  final double classFocusScore;
+  final String? mainDistractType;
   final String? suggestions;
   final String? generatedAt;
-  final List<AppUsageDetail> appUsageDetails;
+  final int personalTotalSeconds;
+  final double personalFocusScore;
+  final List<PersonalAppUsage> personalApps;
+  final List<AppRankingItem> appRanking;
 
   factory ClassroomReport.fromJson(Map<String, dynamic> json) {
     return ClassroomReport(
-      id: json['id'] as int? ?? 0,
+      id: json['classroom_id'] as int? ?? 0,
       classroomId: json['classroom_id'] as int? ?? 0,
       totalStudents: json['total_students'] as int? ?? 0,
-      averageUsageSeconds: (json['average_usage_seconds'] as num? ?? 0)
-          .toDouble(),
-      focusScore: (json['focus_score'] as num? ?? 0).toDouble(),
-      topApps: json['top_apps']?.toString(),
+      classAverageUsageSeconds:
+          (json['class_average_usage_seconds'] as num? ?? 0).toDouble(),
+      classFocusScore:
+          (json['class_focus_score'] as num? ?? 0).toDouble(),
+      mainDistractType: json['main_distract_type']?.toString(),
       suggestions: json['suggestions']?.toString(),
       generatedAt: json['generated_at']?.toString(),
-      appUsageDetails: _parseAppUsageDetails(json['app_usage_details']),
+      personalTotalSeconds: json['personal_total_seconds'] as int? ?? 0,
+      personalFocusScore:
+          (json['personal_focus_score'] as num? ?? 0).toDouble(),
+      personalApps: _parsePersonalApps(json['personal_apps']),
+      appRanking: _parseAppRanking(json['app_ranking']),
     );
   }
 
-  static List<AppUsageDetail> _parseAppUsageDetails(dynamic value) {
+  static List<PersonalAppUsage> _parsePersonalApps(dynamic value) {
     if (value is! List) return const [];
-
     return value
         .whereType<Map<String, dynamic>>()
-        .map(AppUsageDetail.fromJson)
+        .map(PersonalAppUsage.fromJson)
         .where((item) => item.usageSeconds > 0)
-        .toList()
-      ..sort((a, b) => b.usageSeconds.compareTo(a.usageSeconds));
+        .toList();
+  }
+
+  static List<AppRankingItem> _parseAppRanking(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map<String, dynamic>>()
+        .map(AppRankingItem.fromJson)
+        .toList();
   }
 }
 
-class AppUsageDetail {
-  const AppUsageDetail({
+class PersonalAppUsage {
+  const PersonalAppUsage({
     required this.appName,
     required this.usageSeconds,
+    required this.percent,
     this.appPackage,
+    this.category,
   });
 
   final String appName;
   final int usageSeconds;
+  final double percent;
   final String? appPackage;
+  final String? category;
 
-  factory AppUsageDetail.fromJson(Map<String, dynamic> json) {
+  factory PersonalAppUsage.fromJson(Map<String, dynamic> json) {
     final appName =
         json['app_name']?.toString() ??
-        json['name']?.toString() ??
         json['app_package']?.toString() ??
-        'Unknown App';
+        '未知应用';
 
-    return AppUsageDetail(
+    return PersonalAppUsage(
       appName: appName,
       usageSeconds: json['usage_seconds'] as int? ?? 0,
+      percent: (json['percent'] as num? ?? 0).toDouble(),
+      appPackage: json['app_package']?.toString(),
+      category: json['category']?.toString(),
+    );
+  }
+}
+
+class AppRankingItem {
+  const AppRankingItem({
+    required this.appName,
+    required this.totalSeconds,
+    required this.studentCount,
+    this.appPackage,
+  });
+
+  final String appName;
+  final int totalSeconds;
+  final int studentCount;
+  final String? appPackage;
+
+  factory AppRankingItem.fromJson(Map<String, dynamic> json) {
+    final appName =
+        json['app_name']?.toString() ??
+        json['app_package']?.toString() ??
+        '未知应用';
+
+    return AppRankingItem(
+      appName: appName,
+      totalSeconds: json['total_seconds'] as int? ?? 0,
+      studentCount: json['student_count'] as int? ?? 0,
       appPackage: json['app_package']?.toString(),
     );
   }

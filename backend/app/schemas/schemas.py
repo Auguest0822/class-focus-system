@@ -245,6 +245,40 @@ class AppRankingItem(BaseModel):
     student_count: int = Field(description="使用过该 App 的学生人数")
 
 
+# ─────────────────────────── 学生端报告 ───────────────────────────
+class StudentReportAppUsage(BaseModel):
+    """学生个人 App 使用明细（属于学生端报告）。"""
+
+    app_name: str = Field(description="应用名称")
+    app_package: str = Field(default="", description="包名")
+    category: Optional[str] = Field(default=None, description="Android 系统分类")
+    usage_seconds: int = Field(description="使用秒数")
+    percent: float = Field(default=0.0, description="占该学生总分心时长的百分比(0-100)")
+
+
+class StudentClassroomReportInfo(BaseModel):
+    """学生端课堂报告响应体 — 个人数据 + 班级匿名汇总。"""
+
+    classroom_id: int = Field(description="课堂 ID")
+    # ── 班级汇总 ──
+    total_students: int = Field(description="加入课堂的学生总数")
+    class_average_usage_seconds: float = Field(description="全班人均分心秒数")
+    class_focus_score: float = Field(description="全班专注度评分(0-100)")
+    main_distract_type: Optional[str] = Field(default=None, description="全班主要分心类型")
+    suggestions: Optional[str] = Field(default=None, description="系统建议文案")
+    generated_at: Optional[datetime] = Field(default=None, description="报告生成时间")
+    # ── 个人数据 ──
+    personal_total_seconds: int = Field(description="该学生本人总分心秒数")
+    personal_focus_score: float = Field(description="该学生本人专注度评分(0-100)")
+    personal_apps: list[StudentReportAppUsage] = Field(
+        default_factory=list, description="各App使用明细(按秒数降序)"
+    )
+    # ── 班级排行 ──
+    app_ranking: list[AppRankingItem] = Field(
+        default_factory=list, description="全班App总时长排行(匿名聚合)"
+    )
+
+
 class ClassroomReportInfo(BaseModel):
     """课堂报告响应体。"""
 
